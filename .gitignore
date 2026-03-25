@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+.pytest_cache/
+.coverage
+dist/
+build/
+*.egg-info/
+node_modules/
+workspace/projects/
+tools/bin/
+.env
+.tmp-tests/
