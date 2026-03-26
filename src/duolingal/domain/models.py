@@ -128,6 +128,16 @@ class ExtractionResult(BaseModel):
     run: CommandResult
 
 
+class LinesBuildResult(BaseModel):
+    project_root: str
+    script_root: str
+    output_path: str
+    nodes_path: str
+    scene_count: int
+    node_count: int
+    line_count: int
+
+
 class AnalyzeRequest(BaseModel):
     game_path: str
 

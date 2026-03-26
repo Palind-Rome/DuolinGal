@@ -4,10 +4,11 @@ from pathlib import Path
 
 from duolingal.core.analyzer import analyze_game_directory
 from duolingal.core.extractor import extract_project_packages
+from duolingal.core.parser import build_lines_for_project
 from duolingal.core.tool_config import load_toolchain_config
 from duolingal.core.tooling import resolve_tooling_status
 from duolingal.core.workspace import initialize_project_workspace
-from duolingal.domain.models import ExtractionResult, GameAnalysis, ProjectManifest, ToolRequirement
+from duolingal.domain.models import ExtractionResult, GameAnalysis, LinesBuildResult, ProjectManifest, ToolRequirement
 
 
 class ProjectService:
@@ -30,3 +31,10 @@ class ProjectService:
     ) -> list[ExtractionResult]:
         config = load_toolchain_config(config_path)
         return extract_project_packages(project_root, config, package_names=package_names)
+
+    def build_lines(
+        self,
+        project_root: str | Path,
+        script_root: str | Path | None = None,
+    ) -> LinesBuildResult:
+        return build_lines_for_project(project_root, script_root=script_root)

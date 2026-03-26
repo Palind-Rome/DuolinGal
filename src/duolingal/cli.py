@@ -25,6 +25,10 @@ def main(argv: list[str] | None = None) -> int:
     extract_parser.add_argument("--config", help="工具链配置文件路径。")
     extract_parser.add_argument("--package", dest="packages", action="append", help="只提取指定资源包，可重复传入。")
 
+    lines_parser = subparsers.add_parser("build-lines", help="从已提取脚本构建 lines.csv。")
+    lines_parser.add_argument("project_root", help="已初始化的项目工作区目录。")
+    lines_parser.add_argument("--script-root", help="可选的脚本 JSON 根目录。")
+
     args = parser.parse_args(argv)
     service = ProjectService()
 
@@ -50,6 +54,11 @@ def main(argv: list[str] | None = None) -> int:
             package_names=args.packages,
         )
         _emit_json([result.model_dump(mode="json", exclude_none=True) for result in results])
+        return 0
+
+    if args.command == "build-lines":
+        result = service.build_lines(args.project_root, script_root=args.script_root)
+        _emit_json(result.model_dump(mode="json", exclude_none=True))
         return 0
 
     return 1
