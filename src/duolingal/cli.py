@@ -11,40 +11,48 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="duolingal")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    analyze_parser = subparsers.add_parser("analyze", help="分析游戏目录。")
-    analyze_parser.add_argument("game_path", help="游戏安装目录。")
+    analyze_parser = subparsers.add_parser("analyze", help="Analyze a game installation directory.")
+    analyze_parser.add_argument("game_path", help="Game installation directory.")
 
-    init_parser = subparsers.add_parser("init-project", help="初始化工作区。")
-    init_parser.add_argument("game_path", help="游戏安装目录。")
-    init_parser.add_argument("--project-id", help="自定义项目 ID。")
+    init_parser = subparsers.add_parser("init-project", help="Initialize a project workspace.")
+    init_parser.add_argument("game_path", help="Game installation directory.")
+    init_parser.add_argument("--project-id", help="Optional project identifier override.")
 
-    tools_parser = subparsers.add_parser("list-tools", help="列出当前需要的外部工具及检测结果。")
-    tools_parser.add_argument("--config", help="可选的工具链配置文件路径。")
+    tools_parser = subparsers.add_parser("list-tools", help="List external tool requirements and detection results.")
+    tools_parser.add_argument("--config", help="Optional toolchain config path.")
 
-    extract_parser = subparsers.add_parser("extract", help="提取项目中的资源包。")
-    extract_parser.add_argument("project_root", help="已初始化的项目工作区目录。")
-    extract_parser.add_argument("--config", help="工具链配置文件路径。")
-    extract_parser.add_argument("--package", dest="packages", action="append", help="只提取指定资源包，可重复传入。")
+    extract_parser = subparsers.add_parser("extract", help="Extract configured resource packages with an offline tool.")
+    extract_parser.add_argument("project_root", help="Initialized project workspace.")
+    extract_parser.add_argument("--config", help="Toolchain config path.")
+    extract_parser.add_argument("--package", dest="packages", action="append", help="Specific resource package to extract.")
 
-    decompile_parser = subparsers.add_parser("decompile-scripts", help="将提取出的 SCN/PSB 脚本反编译为 JSON。")
-    decompile_parser.add_argument("project_root", help="已初始化的项目工作区目录。")
-    decompile_parser.add_argument("--config", help="工具链配置文件路径。")
-    decompile_parser.add_argument("--input-root", help="可选的原始脚本输入目录。")
-    decompile_parser.add_argument("--output-root", help="可选的反编译输出目录。")
+    decompile_parser = subparsers.add_parser("decompile-scripts", help="Decompile SCN or PSB assets into JSON.")
+    decompile_parser.add_argument("project_root", help="Initialized project workspace.")
+    decompile_parser.add_argument("--config", help="Toolchain config path.")
+    decompile_parser.add_argument("--input-root", help="Optional source asset root.")
+    decompile_parser.add_argument("--output-root", help="Optional JSON output root.")
 
-    preflight_parser = subparsers.add_parser("preflight", help="检查项目是否已具备运行下一阶段的条件。")
-    preflight_parser.add_argument("project_root", help="已初始化的项目工作区目录。")
-    preflight_parser.add_argument("--config", help="工具链配置文件路径。")
+    krkrdump_parser = subparsers.add_parser(
+        "prepare-krkrdump",
+        help="Generate KrkrDump.json and print the local launch command.",
+    )
+    krkrdump_parser.add_argument("project_root", help="Initialized project workspace.")
+    krkrdump_parser.add_argument("--config", help="Toolchain config path.")
+    krkrdump_parser.add_argument("--output-root", help="Optional override for KrkrDump output directory.")
+
+    preflight_parser = subparsers.add_parser("preflight", help="Check whether the project is ready for the next stage.")
+    preflight_parser.add_argument("project_root", help="Initialized project workspace.")
+    preflight_parser.add_argument("--config", help="Toolchain config path.")
     preflight_parser.add_argument(
         "--stage",
         choices=[stage.value for stage in PreflightStage],
         default=PreflightStage.BUILD_LINES.value,
-        help="目标阶段，默认检查到 build-lines。",
+        help="Target stage to validate.",
     )
 
-    lines_parser = subparsers.add_parser("build-lines", help="从脚本 JSON 构建 lines.csv。")
-    lines_parser.add_argument("project_root", help="已初始化的项目工作区目录。")
-    lines_parser.add_argument("--script-root", help="可选的脚本 JSON 根目录。")
+    lines_parser = subparsers.add_parser("build-lines", help="Build lines.csv from script JSON.")
+    lines_parser.add_argument("project_root", help="Initialized project workspace.")
+    lines_parser.add_argument("--script-root", help="Optional script JSON root.")
 
     args = parser.parse_args(argv)
     service = ProjectService()
@@ -81,6 +89,15 @@ def main(argv: list[str] | None = None) -> int:
             output_root=args.output_root,
         )
         _emit_json([result.model_dump(mode="json", exclude_none=True) for result in results])
+        return 0
+
+    if args.command == "prepare-krkrdump":
+        result = service.prepare_krkrdump(
+            args.project_root,
+            config_path=args.config,
+            output_root=args.output_root,
+        )
+        _emit_json(result.model_dump(mode="json", exclude_none=True))
         return 0
 
     if args.command == "preflight":

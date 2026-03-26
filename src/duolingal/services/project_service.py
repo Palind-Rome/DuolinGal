@@ -5,6 +5,7 @@ from pathlib import Path
 from duolingal.core.analyzer import analyze_game_directory
 from duolingal.core.decompiler import decompile_project_scripts
 from duolingal.core.extractor import extract_project_packages
+from duolingal.core.krkrdump import prepare_project_krkrdump
 from duolingal.core.parser import build_lines_for_project
 from duolingal.core.preflight import run_project_preflight
 from duolingal.core.tool_config import load_toolchain_config
@@ -13,6 +14,7 @@ from duolingal.core.workspace import initialize_project_workspace
 from duolingal.domain.models import (
     ExtractionResult,
     GameAnalysis,
+    KrkrDumpPreparationResult,
     LinesBuildResult,
     PreflightReport,
     PreflightStage,
@@ -55,6 +57,19 @@ class ProjectService:
             project_root,
             config,
             input_root=input_root,
+            output_root=output_root,
+        )
+
+    def prepare_krkrdump(
+        self,
+        project_root: str | Path,
+        config_path: str | Path | None = None,
+        output_root: str | Path | None = None,
+    ) -> KrkrDumpPreparationResult:
+        config = load_toolchain_config(config_path)
+        return prepare_project_krkrdump(
+            project_root,
+            config,
             output_root=output_root,
         )
 

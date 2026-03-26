@@ -1,46 +1,23 @@
 # DuolinGal 项目结构与运行流程
 
-这份文档只回答两件事：
+这份文档回答两件事：
 
-1. 当前仓库是怎么组织的
-2. `analyze -> init-project -> preflight -> extract -> decompile-scripts -> build-lines` 这条链路是怎么跑起来的
+1. 仓库现在怎么组织
+2. `analyze -> init-project -> preflight -> prepare-krkrdump/extract -> decompile-scripts -> build-lines` 这条链路怎么运行
 
-它不负责论证项目值不值得做。那部分请看 [feasibility.zh-CN.md](./feasibility.zh-CN.md) 和 [project-plan.zh-CN.md](./project-plan.zh-CN.md)。
-
-## 1. 仓库结构总览
+## 1. 仓库结构
 
 ```text
 DuolinGal/
 |-- apps/
-|   |-- api/
-|   `-- web/
 |-- configs/
 |   `-- toolchain.example.json
 |-- docs/
-|   |-- feasibility.zh-CN.md
-|   |-- local-validation-checklist.zh-CN.md
-|   |-- project-plan.zh-CN.md
-|   `-- structure-and-runtime.zh-CN.md
 |-- src/duolingal/
 |   |-- api/
-|   |   `-- app.py
 |   |-- core/
-|   |   |-- aligner.py
-|   |   |-- analyzer.py
-|   |   |-- decompiler.py
-|   |   |-- extractor.py
-|   |   |-- parser.py
-|   |   |-- preflight.py
-|   |   |-- process_runner.py
-|   |   |-- tool_config.py
-|   |   |-- tooling.py
-|   |   `-- workspace.py
 |   |-- domain/
-|   |   `-- models.py
-|   |-- services/
-|   |   `-- project_service.py
-|   |-- __main__.py
-|   `-- cli.py
+|   `-- services/
 `-- tests/
 ```
 
@@ -48,13 +25,14 @@ DuolinGal/
 
 ### `domain`
 
-核心数据模型层，负责定义统一的数据契约：
+统一数据模型：
 
 - `GameAnalysis`
 - `ProjectManifest`
 - `ToolRequirement`
 - `ExtractionResult`
 - `ScriptDecompileResult`
+- `KrkrDumpPreparationResult`
 - `PreflightReport`
 - `RawScriptNode`
 - `AlignedLine`
@@ -62,55 +40,55 @@ DuolinGal/
 
 ### `core`
 
-当前最关键的业务能力都在这里：
+主要业务能力都在这里：
 
 - `analyzer.py`
-  负责扫描游戏目录并判断是否命中当前支持的游戏指纹
+  扫描游戏目录并匹配当前支持的游戏指纹
 - `workspace.py`
-  负责初始化工作区并写出 `project_manifest.json`
+  初始化工作区并写出 `project_manifest.json`
 - `tool_config.py`
-  负责读取 `toolchain.local.json`
+  读取 `toolchain.local.json`
 - `tooling.py`
-  负责探测工具状态并输出统一的 `ToolRequirement`
+  汇总工具状态
 - `process_runner.py`
-  负责执行外部命令并记录标准化结果
+  执行外部命令并收集标准化结果
 - `extractor.py`
-  负责提取 `voice.xp3`、`scn.xp3`
+  处理离线 XP3 提取
+- `krkrdump.py`
+  生成 `KrkrDump.json` 并输出本机启动命令
 - `decompiler.py`
-  负责把 `.scn`、`.psb`、`.psb.m` 反编译成 JSON
+  用 FreeMote 把 `.scn/.psb/.psb.m` 转成 JSON
 - `preflight.py`
-  负责判断当前项目是否具备运行下一阶段的条件，并给出推荐命令
+  判断当前项目下一步该执行什么
 - `parser.py`
-  负责遍历脚本 JSON，提取 `RawScriptNode` 并导出 `lines.csv`
+  从脚本 JSON 提取节点并导出 `lines.csv`
 - `aligner.py`
-  负责把原始节点转成当前阶段可用的对齐表
+  把原始节点整理成训练或合成可用的数据行
 
 ### `services`
 
-`project_service.py` 是编排层。它自己不做复杂逻辑，只把 `core` 里的能力组织成对上层友好的入口。
+`project_service.py` 负责把 `core` 层能力编排成 CLI 和 API 可直接调用的入口。
 
 ### `api`
 
-`app.py` 是最小本地 API。它不是完整后端，只是为了让后续本地 Web UI 有一个稳定调用面。
+`app.py` 提供最小本地 API，方便以后接 Web UI。
 
 ### `cli`
 
-`cli.py` 是当前最实用的入口。项目现在仍处于“验证链路”的阶段，所以 CLI 比 UI 更重要。
+`cli.py` 是当前最实用的入口，优先用于真实链路验证。
 
-## 3. 最重要的代码文件
+## 3. 重要文件
 
-如果你准备快速读懂当前项目，建议先看这 10 个文件：
+建议先看这几份代码：
 
 1. [models.py](../src/duolingal/domain/models.py)
 2. [analyzer.py](../src/duolingal/core/analyzer.py)
 3. [workspace.py](../src/duolingal/core/workspace.py)
-4. [tool_config.py](../src/duolingal/core/tool_config.py)
-5. [process_runner.py](../src/duolingal/core/process_runner.py)
-6. [extractor.py](../src/duolingal/core/extractor.py)
-7. [decompiler.py](../src/duolingal/core/decompiler.py)
-8. [preflight.py](../src/duolingal/core/preflight.py)
-9. [parser.py](../src/duolingal/core/parser.py)
-10. [project_service.py](../src/duolingal/services/project_service.py)
+4. [krkrdump.py](../src/duolingal/core/krkrdump.py)
+5. [preflight.py](../src/duolingal/core/preflight.py)
+6. [decompiler.py](../src/duolingal/core/decompiler.py)
+7. [parser.py](../src/duolingal/core/parser.py)
+8. [project_service.py](../src/duolingal/services/project_service.py)
 
 ## 4. 调用关系
 
@@ -121,162 +99,107 @@ flowchart TD
   B --> D["Workspace"]
   B --> E["Tool Config + Tooling"]
   B --> F["Extractor + Process Runner"]
-  B --> G["Decompiler + Process Runner"]
-  B --> H["Preflight"]
+  B --> G["KrkrDump Prep"]
+  B --> H["Decompiler + Process Runner"]
+  B --> I["Preflight"]
   B --> J["Parser + Aligner"]
-  C --> I["Domain Models"]
-  D --> I
-  E --> I
-  F --> I
-  G --> I
-  H --> I
-  J --> I
+  C --> K["Domain Models"]
+  D --> K
+  E --> K
+  F --> K
+  G --> K
+  H --> K
+  I --> K
+  J --> K
 ```
 
-## 5. 真实运行链路
+## 5. 实际运行流程
 
 ### 5.1 `analyze`
 
-命令：
-
 ```powershell
 $env:PYTHONPATH='src'
-python -m duolingal analyze "D:\Games\SenrenBanka"
+python -m duolingal analyze "<GAME_DIR>"
 ```
 
-做的事情：
-
-1. `cli.py` 解析命令
-2. `ProjectService.analyze()` 调用 `analyze_game_directory()`
-3. `analyzer.py` 扫描目录中的 `.xp3`、`.dll`、`.exe`
-4. 和已知游戏指纹比对
-5. 输出 `GameAnalysis`
+它会扫描目录里的 `.xp3`、`.dll`、`.exe`，并输出 `GameAnalysis`。
 
 ### 5.2 `init-project`
 
-命令：
-
 ```powershell
-python -m duolingal init-project "D:\Games\SenrenBanka" --project-id senren-banka
+python -m duolingal init-project "<GAME_DIR>" --project-id senren-banka
 ```
 
-做的事情：
+它会创建标准工作区，写出：
 
-1. 先再次执行 `analyze`
-2. `workspace.py` 创建标准目录
-3. 写出 `project_manifest.json`
-4. 写出 `directory_snapshot.json`
+- `project_manifest.json`
+- `directory_snapshot.json`
 
-初始化后的目录大致如下：
-
-```text
-workspace/projects/senren-banka/
-|-- raw_assets/
-|-- extracted_voice/
-|-- extracted_script/
-|-- decompiled_script/
-|-- dataset/
-|-- models/
-|-- generated_voice/
-|-- release/
-|-- logs/
-|-- project_manifest.json
-`-- directory_snapshot.json
-```
+同时把主程序名存进 `primary_executable`，供 `KrkrDump` 使用。
 
 ### 5.3 `preflight`
 
-命令：
-
 ```powershell
-python -m duolingal preflight "D:\DuolinGal\DuolinGal\workspace\projects\senren-banka" --config configs/toolchain.local.json
+python -m duolingal preflight "<PROJECT_ROOT>" --config configs/toolchain.local.json
 ```
 
-做的事情：
+它会检查：
 
-1. 读取 `project_manifest.json`
-2. 读取工具链配置
-3. 按目标阶段检查：
-   - 游戏目录和资源包是否存在
-   - `KrkrExtract` / `FreeMote` 是否配置完整
-   - `extracted_script` 下是否有 `.scn/.psb/.psb.m`
-   - `decompiled_script` 或 `extracted_script` 下是否已有 JSON
-4. 生成结构化报告
-5. 给出当前最推荐执行的下一条命令
+- 游戏目录和关键资源包是否存在
+- `KrkrDump` 是否同时具备 `KrkrDumpLoader.exe`、`KrkrDump.dll` 和游戏 exe
+- `KrkrExtract` 是否可作为离线备用
+- `FreeMote` 是否具备可用参数模板
+- `extracted_script/` 是否已有脚本资源
+- `decompiled_script/` 是否已有 JSON
 
-### 5.4 `extract`
+最后给出下一条最值得执行的命令。
 
-命令：
+### 5.4 `prepare-krkrdump`
 
 ```powershell
-python -m duolingal extract "D:\DuolinGal\DuolinGal\workspace\projects\senren-banka" --config configs/toolchain.local.json
+python -m duolingal prepare-krkrdump "<PROJECT_ROOT>" --config configs/toolchain.local.json
 ```
 
-做的事情：
+它会：
 
-1. 读取 `project_manifest.json`
-2. 从工具链配置里找到 `krkrextract`
-3. 用参数模板渲染实际命令
-4. 调用 `process_runner.py` 执行外部工具
-5. 将 `voice.xp3` 输出到 `extracted_voice/`
-6. 将 `scn.xp3` 输出到 `extracted_script/`
-7. 把每次提取的计划与运行结果写入 `logs/extract-*.json`
+1. 读取项目清单
+2. 找到 `KrkrDumpLoader.exe`
+3. 检查同目录下是否有 `KrkrDump.dll`
+4. 生成脚本优先的 `KrkrDump.json`
+5. 输出一条本机启动命令
 
-模板变量：
+注意：这一步不会在仓库里代替你运行注入式 dump，它只做准备工作。
 
-- `{package}`
-- `{output}`
-- `{workspace}`
-
-### 5.5 `decompile-scripts`
-
-命令：
+### 5.5 `extract`
 
 ```powershell
-python -m duolingal decompile-scripts "D:\DuolinGal\DuolinGal\workspace\projects\senren-banka" --config configs/toolchain.local.json
+python -m duolingal extract "<PROJECT_ROOT>" --config configs/toolchain.local.json
 ```
 
-做的事情：
+这是保留的离线 XP3 方案。只有当你手头的 `KrkrExtract` 版本真的支持稳定 CLI 时，这条路才值得用。
 
-1. 遍历 `extracted_script/` 下的 `.scn`、`.psb`、`.psb.m`
-2. 从工具链配置里找到 `freemote`
-3. 用参数模板渲染实际命令
-4. 调用 `process_runner.py` 逐个反编译脚本文件
-5. 将 JSON 输出到 `decompiled_script/`
-6. 把每次反编译的计划与运行结果写入 `logs/decompile-*.json`
-
-模板变量：
-
-- `{input}`
-- `{output}`
-- `{workspace}`
-
-### 5.6 `build-lines`
-
-命令：
+### 5.6 `decompile-scripts`
 
 ```powershell
-python -m duolingal build-lines "D:\DuolinGal\DuolinGal\workspace\projects\senren-banka"
+python -m duolingal decompile-scripts "<PROJECT_ROOT>" --config configs/toolchain.local.json
 ```
 
-做的事情：
+它会遍历脚本资源，并调用 `FreeMote` 把它们转成 JSON。
 
-1. 默认优先读取 `decompiled_script/`
-2. 如果没有可解析 JSON，再退回到 `extracted_script/`
-3. 递归查找看起来像对话节点的字典结构
-4. 尽量提取：
-   - `speaker_name`
-   - `voice_file`
-   - `jp_text`
-   - `en_text`
-5. 写出 `dataset/script_nodes.jsonl`
-6. 通过 `aligner.py` 生成 `dataset/lines.csv`
+### 5.7 `build-lines`
 
-当前解析器仍然是“中间层骨架”，不是完整的 SCN/PSB 语义恢复器。它的目标是先证明：我们能把脚本 JSON 变成可审查的训练/合成数据表。
+```powershell
+python -m duolingal build-lines "<PROJECT_ROOT>"
+```
 
-## 6. API 运行链路
+它会优先读取 `decompiled_script/`，再退回 `extracted_script/`，然后导出：
 
-启动：
+- `dataset/script_nodes.jsonl`
+- `dataset/lines.csv`
+
+## 6. API
+
+启动方式：
 
 ```powershell
 pip install -e .[api]
@@ -284,45 +207,24 @@ $env:PYTHONPATH='src'
 uvicorn duolingal.api.app:create_app --factory --reload
 ```
 
-当前 API：
+当前接口：
 
 - `GET /health`
 - `GET /api/tools`
 - `POST /api/analyze`
 - `POST /api/projects/init`
 - `POST /api/projects/extract`
+- `POST /api/projects/prepare-krkrdump`
 - `POST /api/projects/decompile-scripts`
 - `POST /api/projects/preflight`
 - `POST /api/projects/build-lines`
 
-## 7. 当前测试覆盖
+## 7. 当前还缺什么
 
-当前测试已经覆盖到这些部分：
+离目标最近但还没落地的部分有：
 
-- 目录识别
-- 工作区初始化
-- 工具链配置读取
-- 命令执行封装
-- XP3 提取骨架
-- 脚本反编译骨架
-- 项目预检报告
-- 脚本 JSON 解析
-- CLI 级的 `preflight`、`extract`、`decompile-scripts`、`build-lines`
-
-运行命令：
-
-```powershell
-python -m unittest discover -s tests
-```
-
-## 8. 现在还缺什么
-
-当前版本已经有“可验证闭环”，但还远不是完整产品。最关键的缺口仍然是：
-
-- 真实的 FreeMote/SCN-PSB 参数适配与实机验证
-- 文本与语音的高精度对齐
-- FFmpeg 音频处理流水线
-- GPT-SoVITS 训练与推理接入
-- 补丁封包与回注验证
-
-如果你准备开始做本机实测，请直接看 [local-validation-checklist.zh-CN.md](./local-validation-checklist.zh-CN.md)。
+- 真实 `KrkrDump` 参数与输出验证
+- 真实 `FreeMote` 反编译验证
+- `lines.csv` 的对齐质量提升
+- 回注补丁与音频链路验证
+- TTS 训练与推理接入

@@ -14,9 +14,11 @@ from duolingal.domain.models import (
     ExtractRequest,
     GameAnalysis,
     InitProjectRequest,
+    KrkrDumpPreparationResult,
     LinesBuildResult,
     PreflightReport,
     PreflightRequest,
+    PrepareKrkrDumpRequest,
     ProjectManifest,
     ScriptDecompileResult,
     ToolRequirement,
@@ -72,6 +74,17 @@ def create_app() -> FastAPI:
                 request.project_root,
                 config_path=request.config_path,
                 input_root=request.input_root,
+                output_root=request.output_root,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/projects/prepare-krkrdump", response_model=KrkrDumpPreparationResult)
+    def prepare_krkrdump(request: PrepareKrkrDumpRequest) -> KrkrDumpPreparationResult:
+        try:
+            return service.prepare_krkrdump(
+                request.project_root,
+                config_path=request.config_path,
                 output_root=request.output_root,
             )
         except ValueError as exc:

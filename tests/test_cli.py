@@ -16,6 +16,54 @@ from duolingal.core.workspace import initialize_project_workspace
 
 
 class CliTests(unittest.TestCase):
+    def test_prepare_krkrdump_command_writes_runtime_config(self) -> None:
+        with temporary_workspace() as temp_dir:
+            game_root = temp_dir / "game"
+            projects_root = temp_dir / "projects"
+            krkrdump_dir = temp_dir / "krkrdump"
+            loader_path = krkrdump_dir / "KrkrDumpLoader.exe"
+            dll_path = krkrdump_dir / "KrkrDump.dll"
+
+            for name in ("voice.xp3", "scn.xp3", "patch.xp3", "KAGParserEx.dll", "psbfile.dll", "senrenbanka.exe"):
+                touch(game_root / name)
+            touch(loader_path)
+            touch(dll_path)
+
+            analysis = analyze_game_directory(game_root)
+            manifest = initialize_project_workspace(analysis, project_id="senren-krkrdump-cli", projects_root=projects_root)
+            project_root = projects_root / "senren-krkrdump-cli"
+            self.assertEqual(str(project_root), manifest.workspace_path)
+
+            config_path = temp_dir / "toolchain.local.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "krkrdump": {
+                            "path": str(loader_path),
+                        }
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            command_stdout = io.StringIO()
+            with redirect_stdout(command_stdout):
+                exit_code = main(
+                    [
+                        "prepare-krkrdump",
+                        str(project_root),
+                        "--config",
+                        str(config_path),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(command_stdout.getvalue())
+            self.assertEqual(payload["output_directory"], str(project_root / "extracted_script"))
+            self.assertTrue((krkrdump_dir / "KrkrDump.json").exists())
+
     def test_preflight_command_outputs_next_recommended_step(self) -> None:
         with temporary_workspace() as temp_dir:
             game_root = temp_dir / "game"

@@ -36,6 +36,7 @@ def initialize_project_workspace(
         engine=analysis.engine,
         root_path=analysis.root_path,
         workspace_path=str(project_root),
+        primary_executable=analysis.executables[0] if analysis.executables else None,
         resource_packages=[package.name for package in analysis.packages],
         resource_package_map={package.name: package.relative_path for package in analysis.packages},
         script_format=analysis.script_format,

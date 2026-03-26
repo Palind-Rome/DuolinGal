@@ -1,4 +1,7 @@
 {
+  "krkrdump": {
+    "path": "C:/Tools/KrkrDump/KrkrDumpLoader.exe"
+  },
   "krkrextract": {
     "path": "C:/Tools/KrkrExtract/KrkrExtract.exe",
     "args": [
@@ -20,6 +23,6 @@
     "path": "C:/Tools/ffmpeg/bin/ffmpeg.exe"
   },
   "gpt-sovits": {
-    "path": "D:/Models/GPT-SoVITS/api_v2.py"
+    "path": "C:/Models/GPT-SoVITS/api_v2.py"
   }
 }

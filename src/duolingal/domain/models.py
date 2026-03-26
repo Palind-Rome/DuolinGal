@@ -25,6 +25,28 @@ class AlignmentStatus(StrEnum):
     MISSING_ENGLISH = "missing_english"
 
 
+class ExtractionStatus(StrEnum):
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class DecompileStatus(StrEnum):
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class PreflightStage(StrEnum):
+    EXTRACT = "extract"
+    DECOMPILE_SCRIPTS = "decompile_scripts"
+    BUILD_LINES = "build_lines"
+
+
+class PreflightCheckStatus(StrEnum):
+    READY = "ready"
+    WARNING = "warning"
+    BLOCKED = "blocked"
+
+
 class PackageInfo(BaseModel):
     name: str
     relative_path: str
@@ -56,6 +78,7 @@ class ProjectManifest(BaseModel):
     engine: str
     root_path: str
     workspace_path: str
+    primary_executable: str | None = None
     resource_packages: list[str] = Field(default_factory=list)
     resource_package_map: dict[str, str] = Field(default_factory=dict)
     script_format: str | None = None
@@ -106,28 +129,6 @@ class CommandResult(BaseModel):
     duration_ms: int
 
 
-class ExtractionStatus(StrEnum):
-    SUCCEEDED = "succeeded"
-    FAILED = "failed"
-
-
-class DecompileStatus(StrEnum):
-    SUCCEEDED = "succeeded"
-    FAILED = "failed"
-
-
-class PreflightStage(StrEnum):
-    EXTRACT = "extract"
-    DECOMPILE_SCRIPTS = "decompile_scripts"
-    BUILD_LINES = "build_lines"
-
-
-class PreflightCheckStatus(StrEnum):
-    READY = "ready"
-    WARNING = "warning"
-    BLOCKED = "blocked"
-
-
 class ExtractionPlan(BaseModel):
     package_name: str
     package_path: str
@@ -158,6 +159,18 @@ class ScriptDecompileResult(BaseModel):
     status: DecompileStatus
     log_path: str
     run: CommandResult
+
+
+class KrkrDumpPreparationResult(BaseModel):
+    project_root: str
+    game_executable: str
+    loader_path: str
+    dll_path: str
+    config_path: str
+    output_directory: str
+    launch_command: str
+    backup_config_path: str | None = None
+    notes: list[str] = Field(default_factory=list)
 
 
 class LinesBuildResult(BaseModel):
@@ -206,6 +219,12 @@ class DecompileScriptsRequest(BaseModel):
     project_root: str
     config_path: str | None = None
     input_root: str | None = None
+    output_root: str | None = None
+
+
+class PrepareKrkrDumpRequest(BaseModel):
+    project_root: str
+    config_path: str | None = None
     output_root: str | None = None
 
 
