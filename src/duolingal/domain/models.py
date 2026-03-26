@@ -72,8 +72,37 @@ class ToolRequirement(BaseModel):
     integration_mode: Literal["manual", "optional", "planned"] = "manual"
     redistribution_note: str | None = None
     executable_hint: str | None = None
+    configured_path: str | None = None
     status: ToolStatus = ToolStatus.NOT_CHECKED
     resolved_command: str | None = None
+
+
+class ToolConfigEntry(BaseModel):
+    path: str
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
+
+
+class ToolchainConfig(BaseModel):
+    source_path: str | None = None
+    tools: dict[str, ToolConfigEntry] = Field(default_factory=dict)
+
+
+class CommandSpec(BaseModel):
+    executable: str
+    args: list[str] = Field(default_factory=list)
+    cwd: str | None = None
+    env: dict[str, str] = Field(default_factory=dict)
+    timeout_seconds: float | None = None
+
+
+class CommandResult(BaseModel):
+    command: list[str]
+    cwd: str | None = None
+    returncode: int
+    stdout: str = ""
+    stderr: str = ""
+    duration_ms: int
 
 
 class AnalyzeRequest(BaseModel):

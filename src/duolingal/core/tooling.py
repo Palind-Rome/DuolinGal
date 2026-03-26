@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
 from shutil import which
 
+from duolingal.core.tool_config import ToolchainConfig
 from duolingal.domain.models import ToolRequirement, ToolStatus
 
 
@@ -50,14 +52,17 @@ KNOWN_TOOLS: tuple[ToolRequirement, ...] = (
 )
 
 
-def resolve_tooling_status() -> list[ToolRequirement]:
+def resolve_tooling_status(config: ToolchainConfig | None = None) -> list[ToolRequirement]:
+    toolchain_config = config or ToolchainConfig()
     resolved: list[ToolRequirement] = []
     for tool in KNOWN_TOOLS:
-        command = _resolve_command(tool)
+        configured_path = _configured_path(toolchain_config, tool.key)
+        command = configured_path or _resolve_command(tool)
         status = _resolve_status(tool, command)
         resolved.append(
             tool.model_copy(
                 update={
+                    "configured_path": configured_path,
                     "status": status,
                     "resolved_command": command,
                 }
@@ -70,6 +75,16 @@ def _resolve_command(tool: ToolRequirement) -> str | None:
     if tool.executable_hint is None:
         return None
     return which(tool.executable_hint)
+
+
+def _configured_path(config: ToolchainConfig, tool_key: str) -> str | None:
+    entry = config.tools.get(tool_key)
+    if entry is None:
+        return None
+    candidate = Path(entry.path).expanduser().resolve()
+    if candidate.exists():
+        return str(candidate)
+    return None
 
 
 def _resolve_status(tool: ToolRequirement, command: str | None) -> ToolStatus:

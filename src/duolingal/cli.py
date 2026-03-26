@@ -17,7 +17,8 @@ def main(argv: list[str] | None = None) -> int:
     init_parser.add_argument("game_path", help="游戏安装目录。")
     init_parser.add_argument("--project-id", help="自定义项目 ID。")
 
-    subparsers.add_parser("list-tools", help="列出当前需要的外部工具及检测结果。")
+    tools_parser = subparsers.add_parser("list-tools", help="列出当前需要的外部工具及检测结果。")
+    tools_parser.add_argument("--config", help="可选的工具链配置文件路径。")
 
     args = parser.parse_args(argv)
     service = ProjectService()
@@ -33,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "list-tools":
-        tools = service.list_tools()
+        tools = service.list_tools(config_path=args.config)
         _emit_json([tool.model_dump(mode="json", exclude_none=True) for tool in tools])
         return 0
 
