@@ -23,12 +23,14 @@ def build_lines_for_project(
 ) -> LinesBuildResult:
     manifest = load_project_manifest(project_root)
     resolved_project_root = Path(manifest.workspace_path)
-    resolved_script_root = Path(script_root) if script_root is not None else resolved_project_root / "extracted_script"
-    resolved_script_root = resolved_script_root.expanduser().resolve()
+    resolved_script_root = _resolve_script_root(resolved_project_root, script_root)
     if not resolved_script_root.exists():
         raise ValueError(f"未找到脚本目录：{resolved_script_root}")
 
     json_files = sorted(resolved_script_root.rglob("*.json"))
+    if not json_files:
+        raise ValueError(f"在 {resolved_script_root} 下未找到可解析的 JSON 脚本。")
+
     nodes: list[RawScriptNode] = []
     for json_file in json_files:
         nodes.extend(parse_script_json_file(json_file, root=resolved_script_root))
@@ -111,15 +113,11 @@ def _dict_to_node(
         en_text = en_text or _first_string(raw_container, ("en", "english"))
 
     if jp_text is None and en_text is None:
-        fallback_text = _first_string(payload, DEFAULT_TEXT_KEYS)
-        jp_text = fallback_text
+        jp_text = _first_string(payload, DEFAULT_TEXT_KEYS)
 
     if not any([speaker_name, voice_file, jp_text, en_text]):
         return None
 
-    metadata = {
-        "candidate_keys": ",".join(sorted(payload.keys())),
-    }
     return RawScriptNode(
         scene_id=scene_id,
         order_index=order_index,
@@ -128,7 +126,7 @@ def _dict_to_node(
         en_text=en_text,
         voice_file=voice_file,
         source_path=str(source_path),
-        metadata=metadata,
+        metadata={"candidate_keys": ",".join(sorted(payload.keys()))},
     )
 
 
@@ -152,6 +150,17 @@ def _scene_id_for(path: Path, root: Path | None) -> str:
         return path.stem
     relative = path.relative_to(root)
     return "__".join(relative.with_suffix("").parts)
+
+
+def _resolve_script_root(project_root: Path, script_root: str | Path | None) -> Path:
+    if script_root is not None:
+        return Path(script_root).expanduser().resolve()
+
+    preferred_root = (project_root / "decompiled_script").resolve()
+    if preferred_root.exists() and any(preferred_root.rglob("*.json")):
+        return preferred_root
+
+    return (project_root / "extracted_script").resolve()
 
 
 def _write_nodes_jsonl(nodes: list[RawScriptNode], destination: Path) -> Path:

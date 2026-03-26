@@ -3,12 +3,20 @@ from __future__ import annotations
 from pathlib import Path
 
 from duolingal.core.analyzer import analyze_game_directory
+from duolingal.core.decompiler import decompile_project_scripts
 from duolingal.core.extractor import extract_project_packages
 from duolingal.core.parser import build_lines_for_project
 from duolingal.core.tool_config import load_toolchain_config
 from duolingal.core.tooling import resolve_tooling_status
 from duolingal.core.workspace import initialize_project_workspace
-from duolingal.domain.models import ExtractionResult, GameAnalysis, LinesBuildResult, ProjectManifest, ToolRequirement
+from duolingal.domain.models import (
+    ExtractionResult,
+    GameAnalysis,
+    LinesBuildResult,
+    ProjectManifest,
+    ScriptDecompileResult,
+    ToolRequirement,
+)
 
 
 class ProjectService:
@@ -31,6 +39,21 @@ class ProjectService:
     ) -> list[ExtractionResult]:
         config = load_toolchain_config(config_path)
         return extract_project_packages(project_root, config, package_names=package_names)
+
+    def decompile_scripts(
+        self,
+        project_root: str | Path,
+        config_path: str | Path | None = None,
+        input_root: str | Path | None = None,
+        output_root: str | Path | None = None,
+    ) -> list[ScriptDecompileResult]:
+        config = load_toolchain_config(config_path)
+        return decompile_project_scripts(
+            project_root,
+            config,
+            input_root=input_root,
+            output_root=output_root,
+        )
 
     def build_lines(
         self,

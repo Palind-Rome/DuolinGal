@@ -130,8 +130,12 @@ def _resolve_output_dir(relative_path: str) -> str:
 
 
 def _render_argument(token: str, package: Path, output: Path, workspace: Path) -> str:
-    return token.format(
-        package=str(package),
-        output=str(output),
-        workspace=str(workspace),
-    )
+    rendered = token
+    replacements = {
+        "{package}": str(package),
+        "{output}": str(output),
+        "{workspace}": str(workspace),
+    }
+    for placeholder, value in replacements.items():
+        rendered = rendered.replace(placeholder, value)
+    return rendered

@@ -24,17 +24,17 @@ class ParserTests(unittest.TestCase):
                     {
                         "scene": [
                             {
-                                "speaker": "ムラサメ",
+                                "speaker": "Murasame",
                                 "voice": "mura_001.ogg",
                                 "texts": {
-                                    "jp": "おはようございます",
+                                    "jp": "jp-line-1",
                                     "en": "Good morning.",
                                 },
                             },
                             {
-                                "name": "芳乃",
+                                "name": "Yoshino",
                                 "storage": "yoshi_002.ogg",
-                                "jp_text": "こんにちは",
+                                "jp_text": "jp-line-2",
                                 "en_text": "Hello.",
                             },
                         ]
@@ -48,7 +48,7 @@ class ParserTests(unittest.TestCase):
             nodes = parse_script_json_file(script_file, root=script_root)
 
             self.assertEqual(len(nodes), 2)
-            self.assertEqual(nodes[0].speaker_name, "ムラサメ")
+            self.assertEqual(nodes[0].speaker_name, "Murasame")
             self.assertEqual(nodes[0].en_text, "Good morning.")
             self.assertEqual(nodes[1].voice_file, "yoshi_002.ogg")
 
@@ -68,18 +68,18 @@ class ParserTests(unittest.TestCase):
                 json.dumps(
                     [
                         {
-                            "speaker": "ムラサメ",
+                            "speaker": "Murasame",
                             "voice": "mura_001.ogg",
                             "texts": {
-                                "jp": "おはようございます",
+                                "jp": "jp-line-1",
                                 "en": "Good morning.",
                             },
                         },
                         {
-                            "speaker": "芳乃",
+                            "speaker": "Yoshino",
                             "voice": "yoshi_002.ogg",
                             "texts": {
-                                "jp": "こんにちは",
+                                "jp": "jp-line-2",
                                 "en": "Hello.",
                             },
                         },
@@ -100,7 +100,63 @@ class ParserTests(unittest.TestCase):
             with (projects_root / "senren-demo" / "dataset" / "lines.csv").open(encoding="utf-8", newline="") as handle:
                 rows = list(csv.DictReader(handle))
             self.assertEqual(rows[0]["status"], "ready")
-            self.assertEqual(rows[1]["speaker_name"], "芳乃")
+            self.assertEqual(rows[1]["speaker_name"], "Yoshino")
+
+    def test_prefers_decompiled_script_directory_when_json_exists(self) -> None:
+        with temporary_workspace() as temp_dir:
+            game_root = temp_dir / "game"
+            projects_root = temp_dir / "projects"
+
+            for name in ("voice.xp3", "scn.xp3", "patch.xp3", "KAGParserEx.dll", "psbfile.dll", "senrenbanka.exe"):
+                touch(game_root / name)
+
+            analysis = analyze_game_directory(game_root)
+            manifest = initialize_project_workspace(analysis, project_id="senren-preferred", projects_root=projects_root)
+
+            extracted_script_dir = projects_root / "senren-preferred" / "extracted_script"
+            decompiled_script_dir = projects_root / "senren-preferred" / "decompiled_script"
+
+            (extracted_script_dir / "ignored.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "speaker": "Ignored",
+                            "voice": "ignored.ogg",
+                            "texts": {
+                                "jp": "ignored-jp",
+                                "en": "This should not be used.",
+                            },
+                        }
+                    ],
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            (decompiled_script_dir / "scene001.scn.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "speaker": "Yoshino",
+                            "voice": "yoshi_001.ogg",
+                            "texts": {
+                                "jp": "jp-line",
+                                "en": "Good morning.",
+                            },
+                        }
+                    ],
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            result = build_lines_for_project(manifest.workspace_path)
+
+            self.assertEqual(result.script_root, str(decompiled_script_dir.resolve()))
+            with (projects_root / "senren-preferred" / "dataset" / "lines.csv").open(encoding="utf-8", newline="") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual(rows[0]["speaker_name"], "Yoshino")
 
 
 if __name__ == "__main__":

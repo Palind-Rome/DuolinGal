@@ -9,12 +9,14 @@ except ModuleNotFoundError:  # pragma: no cover - exercised only when optional d
 from duolingal.domain.models import (
     AnalyzeRequest,
     BuildLinesRequest,
+    DecompileScriptsRequest,
     ExtractionResult,
     ExtractRequest,
     GameAnalysis,
     InitProjectRequest,
     LinesBuildResult,
     ProjectManifest,
+    ScriptDecompileResult,
     ToolRequirement,
 )
 from duolingal.services.project_service import ProjectService
@@ -57,6 +59,18 @@ def create_app() -> FastAPI:
                 request.project_root,
                 config_path=request.config_path,
                 package_names=request.package_names,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/projects/decompile-scripts", response_model=list[ScriptDecompileResult])
+    def decompile_scripts(request: DecompileScriptsRequest) -> list[ScriptDecompileResult]:
+        try:
+            return service.decompile_scripts(
+                request.project_root,
+                config_path=request.config_path,
+                input_root=request.input_root,
+                output_root=request.output_root,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

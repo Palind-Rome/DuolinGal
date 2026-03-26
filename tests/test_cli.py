@@ -28,6 +28,7 @@ class CliTests(unittest.TestCase):
             manifest = initialize_project_workspace(analysis, project_id="senren-cli", projects_root=projects_root)
             project_root = projects_root / "senren-cli"
             self.assertEqual(str(project_root), manifest.workspace_path)
+
             config_path = temp_dir / "toolchain.local.json"
             config_path.write_text(
                 json.dumps(
@@ -71,6 +72,66 @@ class CliTests(unittest.TestCase):
             self.assertTrue((project_root / "extracted_voice" / "done.txt").exists())
             self.assertTrue((project_root / "extracted_script" / "done.txt").exists())
 
+    def test_decompile_scripts_command_writes_json_outputs(self) -> None:
+        with temporary_workspace() as temp_dir:
+            game_root = temp_dir / "game"
+            projects_root = temp_dir / "projects"
+
+            for name in ("voice.xp3", "scn.xp3", "patch.xp3", "KAGParserEx.dll", "psbfile.dll", "senrenbanka.exe"):
+                touch(game_root / name)
+
+            analysis = analyze_game_directory(game_root)
+            manifest = initialize_project_workspace(analysis, project_id="senren-decompile-cli", projects_root=projects_root)
+            project_root = projects_root / "senren-decompile-cli"
+            self.assertEqual(str(project_root), manifest.workspace_path)
+
+            extracted_script_dir = project_root / "extracted_script"
+            touch(extracted_script_dir / "scene001.scn")
+
+            config_path = temp_dir / "toolchain.local.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "freemote": {
+                            "path": sys.executable,
+                            "args": [
+                                "-c",
+                                (
+                                    "import json, sys; from pathlib import Path; "
+                                    "source = Path(sys.argv[1]); "
+                                    "output = Path(sys.argv[2]); "
+                                    "output.parent.mkdir(parents=True, exist_ok=True); "
+                                    "payload = [{'speaker': 'Yoshino', 'voice': source.name + '.ogg', "
+                                    "'texts': {'jp': 'jp-line', 'en': 'Good morning.'}}]; "
+                                    "output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')"
+                                ),
+                                "{input}",
+                                "{output}",
+                            ],
+                        }
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            command_stdout = io.StringIO()
+            with redirect_stdout(command_stdout):
+                exit_code = main(
+                    [
+                        "decompile-scripts",
+                        str(project_root),
+                        "--config",
+                        str(config_path),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(command_stdout.getvalue())
+            self.assertEqual(len(payload), 1)
+            self.assertTrue((project_root / "decompiled_script" / "scene001.scn.json").exists())
+
     def test_build_lines_command_outputs_summary_json(self) -> None:
         with temporary_workspace() as temp_dir:
             game_root = temp_dir / "game"
@@ -83,16 +144,17 @@ class CliTests(unittest.TestCase):
             manifest = initialize_project_workspace(analysis, project_id="senren-lines", projects_root=projects_root)
             project_root = projects_root / "senren-lines"
             self.assertEqual(str(project_root), manifest.workspace_path)
+
             script_dir = project_root / "extracted_script"
             script_dir.mkdir(parents=True, exist_ok=True)
             (script_dir / "scene001.json").write_text(
                 json.dumps(
                     [
                         {
-                            "speaker": "芳乃",
+                            "speaker": "Yoshino",
                             "voice": "yoshi_001.ogg",
                             "texts": {
-                                "jp": "おはようございます。",
+                                "jp": "jp-line",
                                 "en": "Good morning.",
                             },
                         }

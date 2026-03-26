@@ -111,6 +111,11 @@ class ExtractionStatus(StrEnum):
     FAILED = "failed"
 
 
+class DecompileStatus(StrEnum):
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
 class ExtractionPlan(BaseModel):
     package_name: str
     package_path: str
@@ -124,6 +129,21 @@ class ExtractionResult(BaseModel):
     package_path: str
     output_dir: str
     status: ExtractionStatus
+    log_path: str
+    run: CommandResult
+
+
+class ScriptDecompilePlan(BaseModel):
+    source_path: str
+    output_path: str
+    tool_key: str
+    command: list[str]
+
+
+class ScriptDecompileResult(BaseModel):
+    source_path: str
+    output_path: str
+    status: DecompileStatus
     log_path: str
     run: CommandResult
 
@@ -151,6 +171,13 @@ class ExtractRequest(BaseModel):
     project_root: str
     config_path: str | None = None
     package_names: list[str] | None = None
+
+
+class DecompileScriptsRequest(BaseModel):
+    project_root: str
+    config_path: str | None = None
+    input_root: str | None = None
+    output_root: str | None = None
 
 
 class BuildLinesRequest(BaseModel):

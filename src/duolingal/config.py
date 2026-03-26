@@ -11,6 +11,7 @@ DEFAULT_PROJECT_SUBDIRS = (
     "raw_assets",
     "extracted_voice",
     "extracted_script",
+    "decompiled_script",
     "dataset",
     "models",
     "generated_voice",

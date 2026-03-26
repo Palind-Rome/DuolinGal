@@ -25,7 +25,13 @@ def main(argv: list[str] | None = None) -> int:
     extract_parser.add_argument("--config", help="工具链配置文件路径。")
     extract_parser.add_argument("--package", dest="packages", action="append", help="只提取指定资源包，可重复传入。")
 
-    lines_parser = subparsers.add_parser("build-lines", help="从已提取脚本构建 lines.csv。")
+    decompile_parser = subparsers.add_parser("decompile-scripts", help="将提取出的 SCN/PSB 脚本反编译为 JSON。")
+    decompile_parser.add_argument("project_root", help="已初始化的项目工作区目录。")
+    decompile_parser.add_argument("--config", help="工具链配置文件路径。")
+    decompile_parser.add_argument("--input-root", help="可选的原始脚本输入目录。")
+    decompile_parser.add_argument("--output-root", help="可选的反编译输出目录。")
+
+    lines_parser = subparsers.add_parser("build-lines", help="从脚本 JSON 构建 lines.csv。")
     lines_parser.add_argument("project_root", help="已初始化的项目工作区目录。")
     lines_parser.add_argument("--script-root", help="可选的脚本 JSON 根目录。")
 
@@ -52,6 +58,16 @@ def main(argv: list[str] | None = None) -> int:
             args.project_root,
             config_path=args.config,
             package_names=args.packages,
+        )
+        _emit_json([result.model_dump(mode="json", exclude_none=True) for result in results])
+        return 0
+
+    if args.command == "decompile-scripts":
+        results = service.decompile_scripts(
+            args.project_root,
+            config_path=args.config,
+            input_root=args.input_root,
+            output_root=args.output_root,
         )
         _emit_json([result.model_dump(mode="json", exclude_none=True) for result in results])
         return 0

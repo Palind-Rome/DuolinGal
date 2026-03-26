@@ -6,6 +6,7 @@ import unittest
 from support import ensure_src_on_path, temporary_workspace, touch
 
 ensure_src_on_path()
+
 from duolingal.core.analyzer import analyze_game_directory
 from duolingal.core.workspace import initialize_project_workspace
 
@@ -21,11 +22,13 @@ class WorkspaceTests(unittest.TestCase):
             analysis = analyze_game_directory(root)
             manifest = initialize_project_workspace(analysis, project_id="senren-demo", projects_root=projects)
 
-            manifest_path = projects / "senren-demo" / "project_manifest.json"
-            snapshot_path = projects / "senren-demo" / "directory_snapshot.json"
+            project_root = projects / "senren-demo"
+            manifest_path = project_root / "project_manifest.json"
+            snapshot_path = project_root / "directory_snapshot.json"
 
             self.assertTrue(manifest_path.exists())
             self.assertTrue(snapshot_path.exists())
+            self.assertTrue((project_root / "decompiled_script").exists())
             self.assertEqual(manifest.project_id, "senren-demo")
 
             payload = json.loads(manifest_path.read_text(encoding="utf-8"))
