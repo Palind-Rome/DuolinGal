@@ -3,7 +3,7 @@
 这份文档只回答两件事：
 
 1. 当前仓库是怎么组织的
-2. `analyze -> init-project -> extract -> decompile-scripts -> build-lines` 这条链路是怎么跑起来的
+2. `analyze -> init-project -> preflight -> extract -> decompile-scripts -> build-lines` 这条链路是怎么跑起来的
 
 它不负责论证项目值不值得做。那部分请看 [feasibility.zh-CN.md](./feasibility.zh-CN.md) 和 [project-plan.zh-CN.md](./project-plan.zh-CN.md)。
 
@@ -18,6 +18,7 @@ DuolinGal/
 |   `-- toolchain.example.json
 |-- docs/
 |   |-- feasibility.zh-CN.md
+|   |-- local-validation-checklist.zh-CN.md
 |   |-- project-plan.zh-CN.md
 |   `-- structure-and-runtime.zh-CN.md
 |-- src/duolingal/
@@ -29,6 +30,7 @@ DuolinGal/
 |   |   |-- decompiler.py
 |   |   |-- extractor.py
 |   |   |-- parser.py
+|   |   |-- preflight.py
 |   |   |-- process_runner.py
 |   |   |-- tool_config.py
 |   |   |-- tooling.py
@@ -53,6 +55,7 @@ DuolinGal/
 - `ToolRequirement`
 - `ExtractionResult`
 - `ScriptDecompileResult`
+- `PreflightReport`
 - `RawScriptNode`
 - `AlignedLine`
 - `LinesBuildResult`
@@ -75,6 +78,8 @@ DuolinGal/
   负责提取 `voice.xp3`、`scn.xp3`
 - `decompiler.py`
   负责把 `.scn`、`.psb`、`.psb.m` 反编译成 JSON
+- `preflight.py`
+  负责判断当前项目是否具备运行下一阶段的条件，并给出推荐命令
 - `parser.py`
   负责遍历脚本 JSON，提取 `RawScriptNode` 并导出 `lines.csv`
 - `aligner.py`
@@ -94,7 +99,7 @@ DuolinGal/
 
 ## 3. 最重要的代码文件
 
-如果你准备快速读懂当前项目，建议先看这 9 个文件：
+如果你准备快速读懂当前项目，建议先看这 10 个文件：
 
 1. [models.py](../src/duolingal/domain/models.py)
 2. [analyzer.py](../src/duolingal/core/analyzer.py)
@@ -103,8 +108,9 @@ DuolinGal/
 5. [process_runner.py](../src/duolingal/core/process_runner.py)
 6. [extractor.py](../src/duolingal/core/extractor.py)
 7. [decompiler.py](../src/duolingal/core/decompiler.py)
-8. [parser.py](../src/duolingal/core/parser.py)
-9. [project_service.py](../src/duolingal/services/project_service.py)
+8. [preflight.py](../src/duolingal/core/preflight.py)
+9. [parser.py](../src/duolingal/core/parser.py)
+10. [project_service.py](../src/duolingal/services/project_service.py)
 
 ## 4. 调用关系
 
@@ -116,13 +122,15 @@ flowchart TD
   B --> E["Tool Config + Tooling"]
   B --> F["Extractor + Process Runner"]
   B --> G["Decompiler + Process Runner"]
-  B --> H["Parser + Aligner"]
+  B --> H["Preflight"]
+  B --> J["Parser + Aligner"]
   C --> I["Domain Models"]
   D --> I
   E --> I
   F --> I
   G --> I
   H --> I
+  J --> I
 ```
 
 ## 5. 真实运行链路
@@ -176,19 +184,25 @@ workspace/projects/senren-banka/
 `-- directory_snapshot.json
 ```
 
-### 5.3 `list-tools`
+### 5.3 `preflight`
 
 命令：
 
 ```powershell
-python -m duolingal list-tools --config configs/toolchain.local.json
+python -m duolingal preflight "D:\DuolinGal\DuolinGal\workspace\projects\senren-banka" --config configs/toolchain.local.json
 ```
 
 做的事情：
 
-1. `tool_config.py` 读取配置文件
-2. 归一化工具键名，例如 `gpt_sovits` 和 `gpt-sovits` 都会被当成同一个工具
-3. `tooling.py` 输出当前已知工具的状态
+1. 读取 `project_manifest.json`
+2. 读取工具链配置
+3. 按目标阶段检查：
+   - 游戏目录和资源包是否存在
+   - `KrkrExtract` / `FreeMote` 是否配置完整
+   - `extracted_script` 下是否有 `.scn/.psb/.psb.m`
+   - `decompiled_script` 或 `extracted_script` 下是否已有 JSON
+4. 生成结构化报告
+5. 给出当前最推荐执行的下一条命令
 
 ### 5.4 `extract`
 
@@ -278,6 +292,7 @@ uvicorn duolingal.api.app:create_app --factory --reload
 - `POST /api/projects/init`
 - `POST /api/projects/extract`
 - `POST /api/projects/decompile-scripts`
+- `POST /api/projects/preflight`
 - `POST /api/projects/build-lines`
 
 ## 7. 当前测试覆盖
@@ -290,8 +305,9 @@ uvicorn duolingal.api.app:create_app --factory --reload
 - 命令执行封装
 - XP3 提取骨架
 - 脚本反编译骨架
+- 项目预检报告
 - 脚本 JSON 解析
-- CLI 级的 `extract`、`decompile-scripts`、`build-lines`
+- CLI 级的 `preflight`、`extract`、`decompile-scripts`、`build-lines`
 
 运行命令：
 
@@ -309,6 +325,4 @@ python -m unittest discover -s tests
 - GPT-SoVITS 训练与推理接入
 - 补丁封包与回注验证
 
-## 9. 一句话总结
-
-当前仓库已经从“想法”进到“能做真实验证的工程骨架”阶段了。现在真正该关注的，不是继续美化结构，而是尽快用《千恋万花》的真实资源把 `extract -> decompile-scripts -> build-lines -> 10 条回注验证` 跑起来。
+如果你准备开始做本机实测，请直接看 [local-validation-checklist.zh-CN.md](./local-validation-checklist.zh-CN.md)。
