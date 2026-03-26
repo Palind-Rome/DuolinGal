@@ -13,3 +13,4 @@ workspace/projects/
 tools/bin/
 .env
 .tmp-tests/
+config/toolchain.local.json
