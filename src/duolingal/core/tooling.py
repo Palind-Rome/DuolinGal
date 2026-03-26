@@ -54,10 +54,11 @@ def resolve_tooling_status() -> list[ToolRequirement]:
     resolved: list[ToolRequirement] = []
     for tool in KNOWN_TOOLS:
         command = _resolve_command(tool)
+        status = _resolve_status(tool, command)
         resolved.append(
             tool.model_copy(
                 update={
-                    "status": ToolStatus.FOUND if command else ToolStatus.MISSING,
+                    "status": status,
                     "resolved_command": command,
                 }
             )
@@ -69,3 +70,11 @@ def _resolve_command(tool: ToolRequirement) -> str | None:
     if tool.executable_hint is None:
         return None
     return which(tool.executable_hint)
+
+
+def _resolve_status(tool: ToolRequirement, command: str | None) -> ToolStatus:
+    if command:
+        return ToolStatus.FOUND
+    if tool.integration_mode == "planned":
+        return ToolStatus.NOT_CHECKED
+    return ToolStatus.MISSING

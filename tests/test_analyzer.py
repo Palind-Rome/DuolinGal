@@ -1,36 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
-import shutil
-import sys
 import unittest
-from contextlib import contextmanager
-from uuid import uuid4
 
+from support import ensure_src_on_path, temporary_workspace, touch
 
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
+ensure_src_on_path()
 from duolingal.core.analyzer import analyze_game_directory
-
-
-def touch(path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(b"")
-
-
-@contextmanager
-def temporary_workspace() -> Path:
-    root = ROOT / ".tmp-tests"
-    root.mkdir(parents=True, exist_ok=True)
-    temp_dir = root / f"case-{uuid4().hex}"
-    temp_dir.mkdir(parents=True, exist_ok=False)
-    try:
-        yield temp_dir
-    finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 class AnalyzerTests(unittest.TestCase):
@@ -46,6 +21,17 @@ class AnalyzerTests(unittest.TestCase):
             self.assertEqual(analysis.game_id, "senren_banka")
             self.assertEqual(analysis.engine, "kirikiri_z")
             self.assertEqual(analysis.script_format, "scn_psb")
+
+    def test_detects_by_executable_keyword_and_case_insensitive_files(self) -> None:
+        with temporary_workspace() as root:
+            for name in ("VOICE.XP3", "SCN.XP3", "SenrenBanka.EXE"):
+                touch(root / name)
+
+            analysis = analyze_game_directory(root)
+
+            self.assertTrue(analysis.supported)
+            self.assertEqual(analysis.game_id, "senren_banka")
+            self.assertEqual(analysis.confidence.value, "high")
 
     def test_warns_when_core_packages_are_missing(self) -> None:
         with temporary_workspace() as root:

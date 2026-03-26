@@ -1,38 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
 import json
-import shutil
-import sys
 import unittest
-from contextlib import contextmanager
-from uuid import uuid4
 
+from support import ensure_src_on_path, temporary_workspace, touch
 
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
+ensure_src_on_path()
 from duolingal.core.analyzer import analyze_game_directory
 from duolingal.core.workspace import initialize_project_workspace
-
-
-def touch(path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(b"")
-
-
-@contextmanager
-def temporary_workspace() -> Path:
-    root = ROOT / ".tmp-tests"
-    root.mkdir(parents=True, exist_ok=True)
-    temp_dir = root / f"case-{uuid4().hex}"
-    temp_dir.mkdir(parents=True, exist_ok=False)
-    try:
-        yield temp_dir
-    finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 class WorkspaceTests(unittest.TestCase):

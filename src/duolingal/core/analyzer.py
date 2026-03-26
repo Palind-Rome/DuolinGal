@@ -28,7 +28,7 @@ SENREN_BANKA = KnownGameDefinition(
     voice_language="jp",
     text_languages=("jp", "en", "zh-hans", "zh-hant"),
     required_files=frozenset({"voice.xp3", "scn.xp3"}),
-    supporting_files=frozenset({"patch.xp3", "KAGParserEx.dll", "psbfile.dll"}),
+    supporting_files=frozenset({"patch.xp3", "kagparserex.dll", "psbfile.dll"}),
     package_keywords=frozenset({"senren", "banka"}),
 )
 
@@ -53,8 +53,9 @@ def analyze_game_directory(root: str | Path) -> GameAnalysis:
     dlls = sorted(path.name for path in files if path.suffix.lower() == ".dll")
     executables = sorted(path.name for path in files if path.suffix.lower() == ".exe")
     file_names = {path.name for path in files}
+    normalized_file_names = {name.lower() for name in file_names}
 
-    matched_game = _match_known_game(file_names, executables)
+    matched_game = _match_known_game(normalized_file_names, executables)
     warnings: list[str] = []
     notes: list[str] = []
     matched_signatures: list[str] = []
@@ -72,7 +73,7 @@ def analyze_game_directory(root: str | Path) -> GameAnalysis:
         notes.append("目录中发现 XP3 资源包，符合 KiriKiri 系作品的基本特征。")
         matched_signatures.append("xp3-packages")
 
-    if {"KAGParserEx.dll", "psbfile.dll"} & file_names:
+    if {"kagparserex.dll", "psbfile.dll"} & normalized_file_names:
         engine = "kirikiri_z"
         notes.append("检测到 KAG/PSB 相关 DLL，倾向于 KiriKiri Z + SCN/PSB 流程。")
         matched_signatures.append("kirikiri-z-dlls")
@@ -87,20 +88,20 @@ def analyze_game_directory(root: str | Path) -> GameAnalysis:
         voice_language = matched_game.voice_language
         text_languages = list(matched_game.text_languages)
         confidence = ConfidenceLevel.HIGH
-        matched_signatures.extend(sorted(matched_game.required_files & file_names))
-        matched_signatures.extend(sorted(matched_game.supporting_files & file_names))
+        matched_signatures.extend(sorted(matched_game.required_files & normalized_file_names))
+        matched_signatures.extend(sorted(matched_game.supporting_files & normalized_file_names))
         notes.append(
             "当前目录与《千恋万花》Steam 版的已知资源布局高度相符，适合做第一阶段验证样本。"
         )
     else:
         warnings.append("尚未匹配到当前仓库支持的单作品指纹，后续需要扩展定义或人工确认。")
 
-    if "voice.xp3" not in file_names:
+    if "voice.xp3" not in normalized_file_names:
         warnings.append("未找到 voice.xp3，语音提取链路暂时无法确认。")
-    if "scn.xp3" not in file_names:
+    if "scn.xp3" not in normalized_file_names:
         warnings.append("未找到 scn.xp3，脚本/场景提取链路暂时无法确认。")
 
-    if package_infos and "patch.xp3" in file_names:
+    if package_infos and "patch.xp3" in normalized_file_names:
         notes.append("发现 patch.xp3，可作为后续覆盖式补丁验证的参考。")
 
     return GameAnalysis(
@@ -143,12 +144,20 @@ def _scan_files(root: Path, max_depth: int = 3) -> list[Path]:
 
 
 def _match_known_game(file_names: set[str], executables: list[str]) -> KnownGameDefinition | None:
-    executable_names = {name.lower() for name in executables}
+    executable_names = [name.lower() for name in executables]
     for definition in KNOWN_GAMES:
         if not definition.required_files.issubset(file_names):
             continue
-        if definition.package_keywords & executable_names:
+        if _matches_executable_keywords(executable_names, definition.package_keywords):
             return definition
         if definition.supporting_files & file_names:
             return definition
     return None
+
+
+def _matches_executable_keywords(executables: list[str], keywords: frozenset[str]) -> bool:
+    for executable in executables:
+        stem = Path(executable).stem
+        if all(keyword in stem for keyword in keywords):
+            return True
+    return False

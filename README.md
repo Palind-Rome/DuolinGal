@@ -79,4 +79,4 @@ DuolinGal/
 
 - [可行性与风险评估](docs/feasibility.zh-CN.md)
 - [修订后的项目方案](docs/project-plan.zh-CN.md)
-
+- [项目结构与运行流程](docs/structure-and-runtime.zh-CN.md)

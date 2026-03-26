@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 
 from duolingal.services.project_service import ProjectService
 
@@ -23,21 +24,21 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "analyze":
         analysis = service.analyze(args.game_path)
-        print(analysis.model_dump_json(indent=2, exclude_none=True))
+        _emit_json(analysis.model_dump(mode="json", exclude_none=True))
         return 0
 
     if args.command == "init-project":
         manifest = service.init_project(args.game_path, project_id=args.project_id)
-        print(manifest.model_dump_json(indent=2, exclude_none=True))
+        _emit_json(manifest.model_dump(mode="json", exclude_none=True))
         return 0
 
     if args.command == "list-tools":
         tools = service.list_tools()
-        print("[")
-        for index, tool in enumerate(tools):
-            suffix = "," if index < len(tools) - 1 else ""
-            print(tool.model_dump_json(indent=2, exclude_none=True) + suffix)
-        print("]")
+        _emit_json([tool.model_dump(mode="json", exclude_none=True) for tool in tools])
         return 0
 
     return 1
+
+
+def _emit_json(payload: object) -> None:
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
