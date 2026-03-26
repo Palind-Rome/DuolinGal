@@ -3,7 +3,7 @@
 这份文档只回答两件事：
 
 1. 当前仓库是怎么组织的
-2. `analyze -> init-project -> extract -> build-lines` 这条链路是怎么跑起来的
+2. `analyze -> init-project -> extract -> decompile-scripts -> build-lines` 这条链路是怎么跑起来的
 
 它不负责论证项目值不值得做。那部分请看 [feasibility.zh-CN.md](./feasibility.zh-CN.md) 和 [project-plan.zh-CN.md](./project-plan.zh-CN.md)。
 
@@ -26,6 +26,7 @@ DuolinGal/
 |   |-- core/
 |   |   |-- aligner.py
 |   |   |-- analyzer.py
+|   |   |-- decompiler.py
 |   |   |-- extractor.py
 |   |   |-- parser.py
 |   |   |-- process_runner.py
@@ -51,11 +52,10 @@ DuolinGal/
 - `ProjectManifest`
 - `ToolRequirement`
 - `ExtractionResult`
+- `ScriptDecompileResult`
 - `RawScriptNode`
 - `AlignedLine`
 - `LinesBuildResult`
-
-这一层不关心 CLI、API 或磁盘操作。
 
 ### `core`
 
@@ -72,7 +72,9 @@ DuolinGal/
 - `process_runner.py`
   负责执行外部命令并记录标准化结果
 - `extractor.py`
-  负责根据 manifest 和工具配置提取 `voice.xp3`、`scn.xp3`
+  负责提取 `voice.xp3`、`scn.xp3`
+- `decompiler.py`
+  负责把 `.scn`、`.psb`、`.psb.m` 反编译成 JSON
 - `parser.py`
   负责遍历脚本 JSON，提取 `RawScriptNode` 并导出 `lines.csv`
 - `aligner.py`
@@ -92,7 +94,7 @@ DuolinGal/
 
 ## 3. 最重要的代码文件
 
-如果你准备快速读懂当前项目，建议先看这 8 个文件：
+如果你准备快速读懂当前项目，建议先看这 9 个文件：
 
 1. [models.py](../src/duolingal/domain/models.py)
 2. [analyzer.py](../src/duolingal/core/analyzer.py)
@@ -100,8 +102,9 @@ DuolinGal/
 4. [tool_config.py](../src/duolingal/core/tool_config.py)
 5. [process_runner.py](../src/duolingal/core/process_runner.py)
 6. [extractor.py](../src/duolingal/core/extractor.py)
-7. [parser.py](../src/duolingal/core/parser.py)
-8. [project_service.py](../src/duolingal/services/project_service.py)
+7. [decompiler.py](../src/duolingal/core/decompiler.py)
+8. [parser.py](../src/duolingal/core/parser.py)
+9. [project_service.py](../src/duolingal/services/project_service.py)
 
 ## 4. 调用关系
 
@@ -112,20 +115,15 @@ flowchart TD
   B --> D["Workspace"]
   B --> E["Tool Config + Tooling"]
   B --> F["Extractor + Process Runner"]
-  B --> G["Parser + Aligner"]
-  C --> H["Domain Models"]
-  D --> H
-  E --> H
-  F --> H
-  G --> H
+  B --> G["Decompiler + Process Runner"]
+  B --> H["Parser + Aligner"]
+  C --> I["Domain Models"]
+  D --> I
+  E --> I
+  F --> I
+  G --> I
+  H --> I
 ```
-
-这套结构的好处是：
-
-- 入口足够薄
-- 核心逻辑集中在 `core`
-- 数据结构统一
-- 将来接 Web UI、任务队列、TTS 流程时不会推倒重来
 
 ## 5. 真实运行链路
 
@@ -145,8 +143,6 @@ python -m duolingal analyze "D:\Games\SenrenBanka"
 3. `analyzer.py` 扫描目录中的 `.xp3`、`.dll`、`.exe`
 4. 和已知游戏指纹比对
 5. 输出 `GameAnalysis`
-
-这一层的价值是先确认“这是不是当前支持的作品”，而不是盲目解包。
 
 ### 5.2 `init-project`
 
@@ -170,6 +166,7 @@ workspace/projects/senren-banka/
 |-- raw_assets/
 |-- extracted_voice/
 |-- extracted_script/
+|-- decompiled_script/
 |-- dataset/
 |-- models/
 |-- generated_voice/
@@ -193,14 +190,6 @@ python -m duolingal list-tools --config configs/toolchain.local.json
 2. 归一化工具键名，例如 `gpt_sovits` 和 `gpt-sovits` 都会被当成同一个工具
 3. `tooling.py` 输出当前已知工具的状态
 
-当前状态分三种：
-
-- `found`
-- `missing`
-- `not_checked`
-
-其中 `GPT-SoVITS` 目前是 `planned` 工具，所以没配置时会显示成 `not_checked`，避免误导为“现在必须安装”。
-
 ### 5.4 `extract`
 
 命令：
@@ -219,13 +208,36 @@ python -m duolingal extract "D:\DuolinGal\DuolinGal\workspace\projects\senren-ba
 6. 将 `scn.xp3` 输出到 `extracted_script/`
 7. 把每次提取的计划与运行结果写入 `logs/extract-*.json`
 
-当前支持的模板变量有：
+模板变量：
 
 - `{package}`
 - `{output}`
 - `{workspace}`
 
-### 5.5 `build-lines`
+### 5.5 `decompile-scripts`
+
+命令：
+
+```powershell
+python -m duolingal decompile-scripts "D:\DuolinGal\DuolinGal\workspace\projects\senren-banka" --config configs/toolchain.local.json
+```
+
+做的事情：
+
+1. 遍历 `extracted_script/` 下的 `.scn`、`.psb`、`.psb.m`
+2. 从工具链配置里找到 `freemote`
+3. 用参数模板渲染实际命令
+4. 调用 `process_runner.py` 逐个反编译脚本文件
+5. 将 JSON 输出到 `decompiled_script/`
+6. 把每次反编译的计划与运行结果写入 `logs/decompile-*.json`
+
+模板变量：
+
+- `{input}`
+- `{output}`
+- `{workspace}`
+
+### 5.6 `build-lines`
 
 命令：
 
@@ -235,17 +247,18 @@ python -m duolingal build-lines "D:\DuolinGal\DuolinGal\workspace\projects\senre
 
 做的事情：
 
-1. 遍历 `extracted_script/` 下的 `*.json`
-2. 递归查找看起来像对话节点的字典结构
-3. 尽量提取：
+1. 默认优先读取 `decompiled_script/`
+2. 如果没有可解析 JSON，再退回到 `extracted_script/`
+3. 递归查找看起来像对话节点的字典结构
+4. 尽量提取：
    - `speaker_name`
    - `voice_file`
    - `jp_text`
    - `en_text`
-4. 写出 `dataset/script_nodes.jsonl`
-5. 通过 `aligner.py` 生成 `dataset/lines.csv`
+5. 写出 `dataset/script_nodes.jsonl`
+6. 通过 `aligner.py` 生成 `dataset/lines.csv`
 
-当前解析器是“中间层骨架”，不是完整的 SCN/PSB 反编译器。它的目标是先证明：我们能把脚本 JSON 变成可审查的训练/合成数据表。
+当前解析器仍然是“中间层骨架”，不是完整的 SCN/PSB 语义恢复器。它的目标是先证明：我们能把脚本 JSON 变成可审查的训练/合成数据表。
 
 ## 6. API 运行链路
 
@@ -264,9 +277,8 @@ uvicorn duolingal.api.app:create_app --factory --reload
 - `POST /api/analyze`
 - `POST /api/projects/init`
 - `POST /api/projects/extract`
+- `POST /api/projects/decompile-scripts`
 - `POST /api/projects/build-lines`
-
-它们本质上都是对 `ProjectService` 的一层薄包装，目的是给本地前端提供稳定接口，而不是提前堆一个很重的后端。
 
 ## 7. 当前测试覆盖
 
@@ -276,9 +288,10 @@ uvicorn duolingal.api.app:create_app --factory --reload
 - 工作区初始化
 - 工具链配置读取
 - 命令执行封装
-- 资源提取骨架
+- XP3 提取骨架
+- 脚本反编译骨架
 - 脚本 JSON 解析
-- CLI 级的 `extract` 和 `build-lines`
+- CLI 级的 `extract`、`decompile-scripts`、`build-lines`
 
 运行命令：
 
@@ -290,7 +303,7 @@ python -m unittest discover -s tests
 
 当前版本已经有“可验证闭环”，但还远不是完整产品。最关键的缺口仍然是：
 
-- 真实的 SCN/PSB 反编译接入
+- 真实的 FreeMote/SCN-PSB 参数适配与实机验证
 - 文本与语音的高精度对齐
 - FFmpeg 音频处理流水线
 - GPT-SoVITS 训练与推理接入
@@ -298,4 +311,4 @@ python -m unittest discover -s tests
 
 ## 9. 一句话总结
 
-当前仓库已经从“想法”进到“能做真实验证的工程骨架”阶段了。你现在真正该关注的，不是继续美化结构，而是尽快用《千恋万花》的真实资源把 `extract -> build-lines -> 10 条回注验证` 跑起来。
+当前仓库已经从“想法”进到“能做真实验证的工程骨架”阶段了。现在真正该关注的，不是继续美化结构，而是尽快用《千恋万花》的真实资源把 `extract -> decompile-scripts -> build-lines -> 10 条回注验证` 跑起来。

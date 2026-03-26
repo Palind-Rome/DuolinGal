@@ -7,7 +7,11 @@
     ]
   },
   "freemote": {
-    "path": "C:/Tools/FreeMote/PsbDecompile.exe"
+    "path": "C:/Tools/FreeMote/PsbDecompile.exe",
+    "args": [
+      "{input}",
+      "{output}"
+    ]
   },
   "kirikiritools": {
     "path": "C:/Tools/KirikiriTools/Xp3Pack.exe"
