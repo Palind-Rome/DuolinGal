@@ -16,6 +16,58 @@ from duolingal.core.workspace import initialize_project_workspace
 
 
 class CliTests(unittest.TestCase):
+    def test_preflight_command_outputs_next_recommended_step(self) -> None:
+        with temporary_workspace() as temp_dir:
+            game_root = temp_dir / "game"
+            projects_root = temp_dir / "projects"
+            fake_extract = temp_dir / "KrkrExtract.exe"
+            fake_freemote = temp_dir / "PsbDecompile.exe"
+
+            for name in ("voice.xp3", "scn.xp3", "patch.xp3", "KAGParserEx.dll", "psbfile.dll", "senrenbanka.exe"):
+                touch(game_root / name)
+            touch(fake_extract)
+            touch(fake_freemote)
+
+            analysis = analyze_game_directory(game_root)
+            manifest = initialize_project_workspace(analysis, project_id="senren-preflight-cli", projects_root=projects_root)
+            project_root = projects_root / "senren-preflight-cli"
+            self.assertEqual(str(project_root), manifest.workspace_path)
+
+            config_path = temp_dir / "toolchain.local.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "krkrextract": {
+                            "path": str(fake_extract),
+                            "args": ["{package}", "{output}"],
+                        },
+                        "freemote": {
+                            "path": str(fake_freemote),
+                            "args": ["{input}", "{output}"],
+                        },
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            command_stdout = io.StringIO()
+            with redirect_stdout(command_stdout):
+                exit_code = main(
+                    [
+                        "preflight",
+                        str(project_root),
+                        "--config",
+                        str(config_path),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(command_stdout.getvalue())
+            self.assertEqual(payload["target_stage"], "build_lines")
+            self.assertIn("extract", payload["recommended_commands"][0])
+
     def test_extract_command_uses_configured_toolchain(self) -> None:
         with temporary_workspace() as temp_dir:
             game_root = temp_dir / "game"

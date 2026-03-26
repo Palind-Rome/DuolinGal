@@ -116,6 +116,18 @@ class DecompileStatus(StrEnum):
     FAILED = "failed"
 
 
+class PreflightStage(StrEnum):
+    EXTRACT = "extract"
+    DECOMPILE_SCRIPTS = "decompile_scripts"
+    BUILD_LINES = "build_lines"
+
+
+class PreflightCheckStatus(StrEnum):
+    READY = "ready"
+    WARNING = "warning"
+    BLOCKED = "blocked"
+
+
 class ExtractionPlan(BaseModel):
     package_name: str
     package_path: str
@@ -158,6 +170,23 @@ class LinesBuildResult(BaseModel):
     line_count: int
 
 
+class PreflightCheck(BaseModel):
+    key: str
+    label: str
+    status: PreflightCheckStatus
+    detail: str
+    path: str | None = None
+
+
+class PreflightReport(BaseModel):
+    project_root: str
+    config_path: str | None = None
+    target_stage: PreflightStage
+    overall_status: PreflightCheckStatus
+    checks: list[PreflightCheck] = Field(default_factory=list)
+    recommended_commands: list[str] = Field(default_factory=list)
+
+
 class AnalyzeRequest(BaseModel):
     game_path: str
 
@@ -183,6 +212,12 @@ class DecompileScriptsRequest(BaseModel):
 class BuildLinesRequest(BaseModel):
     project_root: str
     script_root: str | None = None
+
+
+class PreflightRequest(BaseModel):
+    project_root: str
+    config_path: str | None = None
+    target_stage: PreflightStage = PreflightStage.BUILD_LINES
 
 
 class RawScriptNode(BaseModel):

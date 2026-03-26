@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 
+from duolingal.domain.models import PreflightStage
 from duolingal.services.project_service import ProjectService
 
 
@@ -30,6 +31,16 @@ def main(argv: list[str] | None = None) -> int:
     decompile_parser.add_argument("--config", help="工具链配置文件路径。")
     decompile_parser.add_argument("--input-root", help="可选的原始脚本输入目录。")
     decompile_parser.add_argument("--output-root", help="可选的反编译输出目录。")
+
+    preflight_parser = subparsers.add_parser("preflight", help="检查项目是否已具备运行下一阶段的条件。")
+    preflight_parser.add_argument("project_root", help="已初始化的项目工作区目录。")
+    preflight_parser.add_argument("--config", help="工具链配置文件路径。")
+    preflight_parser.add_argument(
+        "--stage",
+        choices=[stage.value for stage in PreflightStage],
+        default=PreflightStage.BUILD_LINES.value,
+        help="目标阶段，默认检查到 build-lines。",
+    )
 
     lines_parser = subparsers.add_parser("build-lines", help="从脚本 JSON 构建 lines.csv。")
     lines_parser.add_argument("project_root", help="已初始化的项目工作区目录。")
@@ -70,6 +81,15 @@ def main(argv: list[str] | None = None) -> int:
             output_root=args.output_root,
         )
         _emit_json([result.model_dump(mode="json", exclude_none=True) for result in results])
+        return 0
+
+    if args.command == "preflight":
+        result = service.preflight(
+            args.project_root,
+            config_path=args.config,
+            target_stage=PreflightStage(args.stage),
+        )
+        _emit_json(result.model_dump(mode="json", exclude_none=True))
         return 0
 
     if args.command == "build-lines":

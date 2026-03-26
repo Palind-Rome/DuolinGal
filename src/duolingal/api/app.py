@@ -15,6 +15,8 @@ from duolingal.domain.models import (
     GameAnalysis,
     InitProjectRequest,
     LinesBuildResult,
+    PreflightReport,
+    PreflightRequest,
     ProjectManifest,
     ScriptDecompileResult,
     ToolRequirement,
@@ -71,6 +73,17 @@ def create_app() -> FastAPI:
                 config_path=request.config_path,
                 input_root=request.input_root,
                 output_root=request.output_root,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/projects/preflight", response_model=PreflightReport)
+    def preflight(request: PreflightRequest) -> PreflightReport:
+        try:
+            return service.preflight(
+                request.project_root,
+                config_path=request.config_path,
+                target_stage=request.target_stage,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

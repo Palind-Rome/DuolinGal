@@ -6,6 +6,7 @@ from duolingal.core.analyzer import analyze_game_directory
 from duolingal.core.decompiler import decompile_project_scripts
 from duolingal.core.extractor import extract_project_packages
 from duolingal.core.parser import build_lines_for_project
+from duolingal.core.preflight import run_project_preflight
 from duolingal.core.tool_config import load_toolchain_config
 from duolingal.core.tooling import resolve_tooling_status
 from duolingal.core.workspace import initialize_project_workspace
@@ -13,6 +14,8 @@ from duolingal.domain.models import (
     ExtractionResult,
     GameAnalysis,
     LinesBuildResult,
+    PreflightReport,
+    PreflightStage,
     ProjectManifest,
     ScriptDecompileResult,
     ToolRequirement,
@@ -53,6 +56,18 @@ class ProjectService:
             config,
             input_root=input_root,
             output_root=output_root,
+        )
+
+    def preflight(
+        self,
+        project_root: str | Path,
+        config_path: str | Path | None = None,
+        target_stage: PreflightStage = PreflightStage.BUILD_LINES,
+    ) -> PreflightReport:
+        return run_project_preflight(
+            project_root,
+            config_path=config_path,
+            target_stage=target_stage,
         )
 
     def build_lines(
