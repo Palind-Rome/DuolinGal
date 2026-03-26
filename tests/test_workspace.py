@@ -31,6 +31,7 @@ class WorkspaceTests(unittest.TestCase):
             payload = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(payload["game_id"], "senren_banka")
             self.assertEqual(payload["engine"], "kirikiri_z")
+            self.assertEqual(payload["resource_package_map"]["voice.xp3"], "voice.xp3")
 
 
 if __name__ == "__main__":

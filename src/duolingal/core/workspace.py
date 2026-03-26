@@ -37,6 +37,7 @@ def initialize_project_workspace(
         root_path=analysis.root_path,
         workspace_path=str(project_root),
         resource_packages=[package.name for package in analysis.packages],
+        resource_package_map={package.name: package.relative_path for package in analysis.packages},
         script_format=analysis.script_format,
         language_support=analysis.text_languages,
         voice_language=analysis.voice_language,
@@ -63,3 +64,10 @@ def initialize_project_workspace(
     )
 
     return manifest
+
+
+def load_project_manifest(project_root: str | Path) -> ProjectManifest:
+    manifest_path = Path(project_root).expanduser().resolve() / "project_manifest.json"
+    if not manifest_path.exists():
+        raise ValueError(f"未找到项目清单：{manifest_path}")
+    return ProjectManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))

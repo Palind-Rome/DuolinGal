@@ -57,6 +57,7 @@ class ProjectManifest(BaseModel):
     root_path: str
     workspace_path: str
     resource_packages: list[str] = Field(default_factory=list)
+    resource_package_map: dict[str, str] = Field(default_factory=dict)
     script_format: str | None = None
     language_support: list[str] = Field(default_factory=list)
     voice_language: str | None = None
@@ -103,6 +104,28 @@ class CommandResult(BaseModel):
     stdout: str = ""
     stderr: str = ""
     duration_ms: int
+
+
+class ExtractionStatus(StrEnum):
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class ExtractionPlan(BaseModel):
+    package_name: str
+    package_path: str
+    output_dir: str
+    tool_key: str
+    command: list[str]
+
+
+class ExtractionResult(BaseModel):
+    package_name: str
+    package_path: str
+    output_dir: str
+    status: ExtractionStatus
+    log_path: str
+    run: CommandResult
 
 
 class AnalyzeRequest(BaseModel):

@@ -20,6 +20,11 @@ def main(argv: list[str] | None = None) -> int:
     tools_parser = subparsers.add_parser("list-tools", help="列出当前需要的外部工具及检测结果。")
     tools_parser.add_argument("--config", help="可选的工具链配置文件路径。")
 
+    extract_parser = subparsers.add_parser("extract", help="提取项目中的资源包。")
+    extract_parser.add_argument("project_root", help="已初始化的项目工作区目录。")
+    extract_parser.add_argument("--config", help="工具链配置文件路径。")
+    extract_parser.add_argument("--package", dest="packages", action="append", help="只提取指定资源包，可重复传入。")
+
     args = parser.parse_args(argv)
     service = ProjectService()
 
@@ -36,6 +41,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "list-tools":
         tools = service.list_tools(config_path=args.config)
         _emit_json([tool.model_dump(mode="json", exclude_none=True) for tool in tools])
+        return 0
+
+    if args.command == "extract":
+        results = service.extract(
+            args.project_root,
+            config_path=args.config,
+            package_names=args.packages,
+        )
+        _emit_json([result.model_dump(mode="json", exclude_none=True) for result in results])
         return 0
 
     return 1
