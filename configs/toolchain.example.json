@@ -1,6 +1,10 @@
 {
   "krkrextract": {
-    "path": "C:/Tools/KrkrExtract/KrkrExtract.exe"
+    "path": "C:/Tools/KrkrExtract/KrkrExtract.exe",
+    "args": [
+      "{package}",
+      "{output}"
+    ]
   },
   "freemote": {
     "path": "C:/Tools/FreeMote/PsbDecompile.exe"
@@ -11,7 +15,7 @@
   "ffmpeg": {
     "path": "C:/Tools/ffmpeg/bin/ffmpeg.exe"
   },
-  "gpt_sovits": {
+  "gpt-sovits": {
     "path": "D:/Models/GPT-SoVITS/api_v2.py"
   }
 }

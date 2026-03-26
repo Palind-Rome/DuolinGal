@@ -147,6 +147,17 @@ class InitProjectRequest(BaseModel):
     project_id: str | None = None
 
 
+class ExtractRequest(BaseModel):
+    project_root: str
+    config_path: str | None = None
+    package_names: list[str] | None = None
+
+
+class BuildLinesRequest(BaseModel):
+    project_root: str
+    script_root: str | None = None
+
+
 class RawScriptNode(BaseModel):
     scene_id: str
     order_index: int

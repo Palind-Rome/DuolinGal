@@ -19,7 +19,7 @@ def load_toolchain_config(config_path: str | Path | None = None) -> ToolchainCon
 
     payload = json.loads(resolved_path.read_text(encoding="utf-8"))
     tools = {
-        key: ToolConfigEntry.model_validate(value)
+        _normalize_tool_key(key): ToolConfigEntry.model_validate(value)
         for key, value in payload.items()
         if isinstance(value, dict)
     }
@@ -38,3 +38,7 @@ def _resolve_config_path(config_path: str | Path | None) -> Path | None:
         return Path(env_path).expanduser().resolve()
 
     return DEFAULT_TOOLCHAIN_CONFIG_PATH
+
+
+def _normalize_tool_key(key: str) -> str:
+    return key.strip().lower().replace("_", "-")

@@ -38,6 +38,32 @@ class ToolConfigTests(unittest.TestCase):
             self.assertEqual(tools["krkrextract"].status.value, "found")
             self.assertEqual(tools["krkrextract"].configured_path, str(fake_tool))
 
+    def test_normalizes_tool_keys_with_underscores(self) -> None:
+        with temporary_workspace() as temp_dir:
+            fake_tool = temp_dir / "api_v2.py"
+            fake_tool.write_text("# placeholder", encoding="utf-8")
+
+            config_path = temp_dir / "toolchain.local.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "gpt_sovits": {
+                            "path": str(fake_tool),
+                        }
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            config = load_toolchain_config(config_path)
+            tools = {tool.key: tool for tool in resolve_tooling_status(config)}
+
+            self.assertIn("gpt-sovits", config.tools)
+            self.assertEqual(tools["gpt-sovits"].configured_path, str(fake_tool))
+            self.assertEqual(tools["gpt-sovits"].status.value, "found")
+
     def test_missing_config_file_returns_empty_config(self) -> None:
         with temporary_workspace() as temp_dir:
             config = load_toolchain_config(temp_dir / "missing.json")

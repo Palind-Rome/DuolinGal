@@ -6,7 +6,17 @@ except ModuleNotFoundError:  # pragma: no cover - exercised only when optional d
     FastAPI = None
     HTTPException = RuntimeError
 
-from duolingal.domain.models import AnalyzeRequest, GameAnalysis, InitProjectRequest, ProjectManifest, ToolRequirement
+from duolingal.domain.models import (
+    AnalyzeRequest,
+    BuildLinesRequest,
+    ExtractionResult,
+    ExtractRequest,
+    GameAnalysis,
+    InitProjectRequest,
+    LinesBuildResult,
+    ProjectManifest,
+    ToolRequirement,
+)
 from duolingal.services.project_service import ProjectService
 
 
@@ -26,8 +36,8 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     @app.get("/api/tools", response_model=list[ToolRequirement])
-    def list_tools() -> list[ToolRequirement]:
-        return service.list_tools()
+    def list_tools(config_path: str | None = None) -> list[ToolRequirement]:
+        return service.list_tools(config_path=config_path)
 
     @app.post("/api/analyze", response_model=GameAnalysis)
     def analyze(request: AnalyzeRequest) -> GameAnalysis:
@@ -37,6 +47,24 @@ def create_app() -> FastAPI:
     def init_project(request: InitProjectRequest) -> ProjectManifest:
         try:
             return service.init_project(request.game_path, project_id=request.project_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/projects/extract", response_model=list[ExtractionResult])
+    def extract_project(request: ExtractRequest) -> list[ExtractionResult]:
+        try:
+            return service.extract(
+                request.project_root,
+                config_path=request.config_path,
+                package_names=request.package_names,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/projects/build-lines", response_model=LinesBuildResult)
+    def build_lines(request: BuildLinesRequest) -> LinesBuildResult:
+        try:
+            return service.build_lines(request.project_root, script_root=request.script_root)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
