@@ -10,6 +10,7 @@ from duolingal.domain.models import KrkrDumpPreparationResult, ProjectManifest
 
 
 KRKRDUMP_TOOL_KEY = "krkrdump"
+DEFAULT_LOG_LEVEL = 2
 DEFAULT_INCLUDE_EXTENSIONS = [
     ".scn",
     ".psb",
@@ -20,14 +21,10 @@ DEFAULT_INCLUDE_EXTENSIONS = [
     ".csv",
 ]
 DEFAULT_RULES = [
-    {"from": "file://./", "to": ""},
-    {"from": "file://", "to": ""},
-    {"from": "archive://./", "to": ""},
-    {"from": "archive://", "to": ""},
-    {"from": "arc://./", "to": ""},
-    {"from": "arc://", "to": ""},
-    {"from": "bres://./", "to": ""},
-    {"from": "bres://", "to": ""},
+    r"file://\./.+?\.xp3>(.+?\..+$)",
+    r"archive://./(.+)",
+    r"arc://./(.+)",
+    r"bres://./(.+)",
 ]
 
 
@@ -73,6 +70,8 @@ def prepare_krkrdump_from_manifest(
     backup_config_path = _backup_existing_config(config_path)
 
     config_payload = {
+        "loglevel": DEFAULT_LOG_LEVEL,
+        "enableExtract": True,
         "outputDirectory": str(output_directory),
         "includeExtensions": DEFAULT_INCLUDE_EXTENSIONS,
         "excludeExtensions": [],
@@ -111,9 +110,11 @@ def _resolve_game_executable(manifest: ProjectManifest) -> Path:
 
     candidates: list[Path] = []
     if manifest.primary_executable:
-        candidates.append(game_root / manifest.primary_executable)
+        primary_candidate = game_root / manifest.primary_executable
+        if _looks_like_game_executable(primary_candidate):
+            candidates.append(primary_candidate)
 
-    candidates.extend(sorted(game_root.glob("*.exe"), key=lambda path: path.name.lower()))
+    candidates.extend(_preferred_game_executables(game_root))
     seen: set[str] = set()
     for candidate in candidates:
         normalized = str(candidate).lower()
@@ -124,6 +125,20 @@ def _resolve_game_executable(manifest: ProjectManifest) -> Path:
             return candidate.resolve()
 
     raise ValueError(f"No game executable was found under: {game_root}")
+
+
+def _preferred_game_executables(game_root: Path) -> list[Path]:
+    executables = sorted(game_root.glob("*.exe"), key=lambda path: path.name.lower())
+    preferred = [path for path in executables if _looks_like_game_executable(path)]
+    if preferred:
+        return preferred
+    return executables
+
+
+def _looks_like_game_executable(path: Path) -> bool:
+    helper_markers = ("dump", "loader", "extract", "patch", "unins", "setup", "config")
+    stem = path.stem.lower()
+    return not any(marker in stem for marker in helper_markers)
 
 
 def _backup_existing_config(config_path: Path) -> str | None:
