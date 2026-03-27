@@ -16,8 +16,10 @@ from duolingal.domain.models import (
     InitProjectRequest,
     KrkrDumpPreparationResult,
     LinesBuildResult,
+    PocPreparationResult,
     PreflightReport,
     PreflightRequest,
+    PreparePocRequest,
     PrepareKrkrDumpRequest,
     ProjectManifest,
     ScriptDecompileResult,
@@ -105,6 +107,19 @@ def create_app() -> FastAPI:
     def build_lines(request: BuildLinesRequest) -> LinesBuildResult:
         try:
             return service.build_lines(request.project_root, script_root=request.script_root)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/projects/prepare-poc", response_model=PocPreparationResult)
+    def prepare_poc(request: PreparePocRequest) -> PocPreparationResult:
+        try:
+            return service.prepare_poc(
+                request.project_root,
+                request.voice_root,
+                line_id=request.line_id,
+                speaker_name=request.speaker_name,
+                contains=request.contains,
+            )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 

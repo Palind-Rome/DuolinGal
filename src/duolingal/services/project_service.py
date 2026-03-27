@@ -7,6 +7,7 @@ from duolingal.core.decompiler import decompile_project_scripts
 from duolingal.core.extractor import extract_project_packages
 from duolingal.core.krkrdump import prepare_project_krkrdump
 from duolingal.core.parser import build_lines_for_project
+from duolingal.core.poc import prepare_single_line_poc
 from duolingal.core.preflight import run_project_preflight
 from duolingal.core.tool_config import load_toolchain_config
 from duolingal.core.tooling import resolve_tooling_status
@@ -16,6 +17,7 @@ from duolingal.domain.models import (
     GameAnalysis,
     KrkrDumpPreparationResult,
     LinesBuildResult,
+    PocPreparationResult,
     PreflightReport,
     PreflightStage,
     ProjectManifest,
@@ -91,3 +93,20 @@ class ProjectService:
         script_root: str | Path | None = None,
     ) -> LinesBuildResult:
         return build_lines_for_project(project_root, script_root=script_root)
+
+    def prepare_poc(
+        self,
+        project_root: str | Path,
+        voice_root: str | Path,
+        *,
+        line_id: str | None = None,
+        speaker_name: str | None = None,
+        contains: str | None = None,
+    ) -> PocPreparationResult:
+        return prepare_single_line_poc(
+            project_root,
+            voice_root,
+            line_id=line_id,
+            speaker_name=speaker_name,
+            contains=contains,
+        )

@@ -239,6 +239,14 @@ class PreflightRequest(BaseModel):
     target_stage: PreflightStage = PreflightStage.BUILD_LINES
 
 
+class PreparePocRequest(BaseModel):
+    project_root: str
+    voice_root: str
+    line_id: str | None = None
+    speaker_name: str | None = None
+    contains: str | None = None
+
+
 class RawScriptNode(BaseModel):
     scene_id: str
     order_index: int
@@ -260,3 +268,21 @@ class AlignedLine(BaseModel):
     voice_file: str | None = None
     status: AlignmentStatus
     evidence: list[str] = Field(default_factory=list)
+
+
+class PocPreparationResult(BaseModel):
+    project_root: str
+    line_id: str
+    scene_id: str
+    order_index: int
+    speaker_name: str | None = None
+    jp_text: str | None = None
+    en_text: str | None = None
+    voice_file: str
+    source_voice_path: str
+    workspace_dir: str
+    original_voice_path: str
+    game_ready_voice_path: str
+    metadata_path: str
+    notes_path: str
+    notes: list[str] = Field(default_factory=list)

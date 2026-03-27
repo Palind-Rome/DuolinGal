@@ -10,6 +10,7 @@ DuolinGal is a local-first research toolchain for experimenting with English voi
 - Optionally run an offline XP3 extraction flow when a compatible CLI exists.
 - Decompile SCN or PSB assets into JSON with FreeMote.
 - Build `dataset/lines.csv` and `dataset/script_nodes.jsonl`.
+- Prepare an all-ages single-line voice replacement PoC workspace.
 
 ## Privacy Notes
 
@@ -37,6 +38,7 @@ python -m duolingal preflight "<PROJECT_ROOT>" --config configs/toolchain.local.
 python -m duolingal prepare-krkrdump "<PROJECT_ROOT>" --config configs/toolchain.local.json
 python -m duolingal decompile-scripts "<PROJECT_ROOT>" --config configs/toolchain.local.json
 python -m duolingal build-lines "<PROJECT_ROOT>"
+python -m duolingal prepare-poc "<PROJECT_ROOT>" "<VOICE_DIR>"
 ```
 
 If your environment still uses an offline extractor instead of KrkrDump, `preflight` may recommend `extract` before `decompile-scripts`.
@@ -81,6 +83,7 @@ Available routes:
 - `POST /api/projects/prepare-krkrdump`
 - `POST /api/projects/preflight`
 - `POST /api/projects/build-lines`
+- `POST /api/projects/prepare-poc`
 
 ## Repository Layout
 
@@ -103,6 +106,7 @@ DuolinGal/
 - [Project Plan](docs/project-plan.zh-CN.md)
 - [Structure and Runtime Flow](docs/structure-and-runtime.zh-CN.md)
 - [Local Validation Checklist](docs/local-validation-checklist.zh-CN.md)
+- [Single-line PoC Guide](docs/single-line-poc.zh-CN.md)
 
 ## Boundaries
 

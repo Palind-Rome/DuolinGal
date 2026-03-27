@@ -54,6 +54,13 @@ def main(argv: list[str] | None = None) -> int:
     lines_parser.add_argument("project_root", help="Initialized project workspace.")
     lines_parser.add_argument("--script-root", help="Optional script JSON root.")
 
+    poc_parser = subparsers.add_parser("prepare-poc", help="Prepare a single-line all-ages voice replacement PoC.")
+    poc_parser.add_argument("project_root", help="Initialized project workspace.")
+    poc_parser.add_argument("voice_root", help="Extracted voice directory used for source lookup.")
+    poc_parser.add_argument("--line-id", help="Optional exact line_id from lines.csv.")
+    poc_parser.add_argument("--speaker", help="Optional exact speaker_name filter.")
+    poc_parser.add_argument("--contains", help="Optional substring filter across speaker, JP, and EN text.")
+
     args = parser.parse_args(argv)
     service = ProjectService()
 
@@ -111,6 +118,17 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "build-lines":
         result = service.build_lines(args.project_root, script_root=args.script_root)
+        _emit_json(result.model_dump(mode="json", exclude_none=True))
+        return 0
+
+    if args.command == "prepare-poc":
+        result = service.prepare_poc(
+            args.project_root,
+            args.voice_root,
+            line_id=args.line_id,
+            speaker_name=args.speaker,
+            contains=args.contains,
+        )
         _emit_json(result.model_dump(mode="json", exclude_none=True))
         return 0
 
