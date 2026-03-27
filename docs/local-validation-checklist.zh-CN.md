@@ -68,7 +68,7 @@
   },
   "freemote": {
     "path": "C:/YourPath/PsbDecompile.exe",
-    "args": ["{input}", "{output}"]
+    "args": ["-o", "{output}", "{input}"]
   }
 }
 ```

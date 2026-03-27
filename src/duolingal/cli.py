@@ -118,4 +118,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _emit_json(payload: object) -> None:
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    pretty_json = json.dumps(payload, ensure_ascii=False, indent=2)
+    try:
+        print(pretty_json)
+    except UnicodeEncodeError:
+        print(json.dumps(payload, ensure_ascii=True, indent=2))

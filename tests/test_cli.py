@@ -199,11 +199,12 @@ class CliTests(unittest.TestCase):
                                 (
                                     "import json, sys; from pathlib import Path; "
                                     "source = Path(sys.argv[1]); "
-                                    "output = Path(sys.argv[2]); "
-                                    "output.parent.mkdir(parents=True, exist_ok=True); "
+                                    "output_dir = Path(sys.argv[2]); "
+                                    "output_dir.mkdir(parents=True, exist_ok=True); "
                                     "payload = [{'speaker': 'Yoshino', 'voice': source.name + '.ogg', "
                                     "'texts': {'jp': 'jp-line', 'en': 'Good morning.'}}]; "
-                                    "output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')"
+                                    "(output_dir / (source.with_suffix('').name + '.json')).write_text("
+                                    "json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')"
                                 ),
                                 "{input}",
                                 "{output}",
@@ -230,7 +231,7 @@ class CliTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             payload = json.loads(command_stdout.getvalue())
             self.assertEqual(len(payload), 1)
-            self.assertTrue((project_root / "decompiled_script" / "scene001.scn.json").exists())
+            self.assertTrue((project_root / "decompiled_script" / "scene001.json").exists())
 
     def test_build_lines_command_outputs_summary_json(self) -> None:
         with temporary_workspace() as temp_dir:

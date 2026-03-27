@@ -12,8 +12,9 @@
   "freemote": {
     "path": "C:/Tools/FreeMote/PsbDecompile.exe",
     "args": [
+      "-o",
+      "{output}",
       "{input}",
-      "{output}"
     ]
   },
   "kirikiritools": {

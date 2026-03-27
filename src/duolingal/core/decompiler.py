@@ -46,19 +46,23 @@ def decompile_scripts_from_manifest(
 ) -> list[ScriptDecompileResult]:
     tool_entry = config.tools.get(DECOMPILER_TOOL_KEY)
     if tool_entry is None:
-        raise ValueError("未配置 freemote。请在 toolchain.local.json 中提供路径和参数模板。")
+        raise ValueError(
+            "FreeMote is not configured. Add a `freemote` entry to toolchain.local.json."
+        )
     if not tool_entry.args:
-        raise ValueError("freemote 缺少 args 模板。请至少提供 {input} 和 {output} 相关参数。")
+        raise ValueError(
+            "FreeMote is missing an args template. Provide placeholders for {input} and {output}."
+        )
 
     executable = Path(tool_entry.path).expanduser().resolve()
     if not executable.exists():
-        raise ValueError(f"freemote 路径不存在：{executable}")
+        raise ValueError(f"FreeMote path does not exist: {executable}")
 
-    project_path = Path(manifest.workspace_path)
+    project_path = Path(manifest.workspace_path).resolve()
     source_root = Path(input_root) if input_root is not None else project_path / DEFAULT_INPUT_DIR
     source_root = source_root.expanduser().resolve()
     if not source_root.exists():
-        raise ValueError(f"未找到待反编译脚本目录：{source_root}")
+        raise ValueError(f"Script asset directory does not exist: {source_root}")
 
     target_root = Path(output_root) if output_root is not None else project_path / DEFAULT_OUTPUT_DIR
     target_root = target_root.expanduser().resolve()
@@ -69,19 +73,20 @@ def decompile_scripts_from_manifest(
 
     candidates = list(_iter_script_assets(source_root))
     if not candidates:
-        raise ValueError(f"在 {source_root} 下未找到可反编译的 .scn/.psb/.psb.m 文件。")
+        raise ValueError(f"No .scn/.psb/.psb.m files were found under: {source_root}")
 
     results: list[ScriptDecompileResult] = []
     for source_path in candidates:
         relative_path = source_path.relative_to(source_root)
-        output_path = target_root / relative_path.parent / f"{relative_path.name}.json"
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_dir = (target_root / relative_path.parent).resolve()
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / _decompiled_json_name(relative_path.name)
 
         rendered_args = [
             _render_argument(
                 token,
                 input_path=source_path,
-                output_path=output_path,
+                output_dir=output_dir,
                 workspace=project_path,
             )
             for token in tool_entry.args
@@ -142,11 +147,15 @@ def _is_decompilable_script_asset(path: Path) -> bool:
     return name.endswith(".scn") or name.endswith(".psb") or name.endswith(".psb.m")
 
 
-def _render_argument(token: str, input_path: Path, output_path: Path, workspace: Path) -> str:
+def _decompiled_json_name(file_name: str) -> str:
+    return f"{Path(file_name).with_suffix('').name}.json"
+
+
+def _render_argument(token: str, input_path: Path, output_dir: Path, workspace: Path) -> str:
     rendered = token
     replacements = {
         "{input}": str(input_path),
-        "{output}": str(output_path),
+        "{output}": str(output_dir),
         "{workspace}": str(workspace),
     }
     for placeholder, value in replacements.items():
