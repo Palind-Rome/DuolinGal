@@ -4,6 +4,7 @@ import csv
 import hashlib
 import json
 import re
+import shutil
 from pathlib import Path
 
 from duolingal.core.workspace import load_project_manifest
@@ -62,6 +63,8 @@ def prepare_gptsovits_training(
 
     input_list_path = inputs_dir / "train_ja.list"
     _write_training_input_list(input_list_path, prepared_rows, speaker_alias)
+    staged_audio_root = training_root / "source-audio"
+    _materialize_ascii_source_audio(staged_audio_root, prepared_rows)
 
     gpt_config_path = configs_dir / "s1-v2.yaml"
     sovits_config_path = configs_dir / "s2-v2.json"
@@ -105,7 +108,7 @@ def prepare_gptsovits_training(
     common_paths = _CommonPaths(
         gpt_sovits_root=resolved_gpt_root,
         input_list_path=input_list_path,
-        source_audio_root=speaker_dir / "audio",
+        source_audio_root=staged_audio_root,
         exp_dir=exp_dir,
         gpu=gpu,
         is_half=is_half,
@@ -172,7 +175,7 @@ def prepare_gptsovits_training(
         experiment_name=experiment_name,
         gpt_sovits_root=str(resolved_gpt_root),
         training_root=str(training_root),
-        source_audio_root=str((speaker_dir / "audio").resolve()),
+        source_audio_root=str(staged_audio_root.resolve()),
         input_list_path=str(input_list_path),
         exp_dir=str(exp_dir),
         gpt_config_path=str(gpt_config_path),
@@ -281,6 +284,20 @@ def _collect_training_rows(speaker_dir: Path, rows: list[dict[str, str]]) -> lis
             }
         )
     return prepared_rows
+
+
+def _materialize_ascii_source_audio(staged_audio_root: Path, rows: list[dict[str, str]]) -> None:
+    staged_audio_root.mkdir(parents=True, exist_ok=True)
+    for row in rows:
+        source_path = Path(row["audio_path"])
+        destination_path = staged_audio_root / row["voice_file"]
+        if destination_path.exists():
+            continue
+
+        try:
+            destination_path.hardlink_to(source_path)
+        except OSError:
+            shutil.copy2(source_path, destination_path)
 
 
 def _derive_experiment_name(speaker_name: str, rows: list[dict[str, str]]) -> str:

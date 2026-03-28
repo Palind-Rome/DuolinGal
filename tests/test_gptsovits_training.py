@@ -76,6 +76,8 @@ class GptSovitsTrainingPreparationTests(unittest.TestCase):
             self.assertEqual(result.speaker_alias, "mur_v2")
             self.assertEqual(result.experiment_name, "mur-v2")
             self.assertEqual(result.line_count, 1)
+            self.assertIn("tts-training", result.source_audio_root)
+            self.assertTrue((Path(result.source_audio_root) / "mur001_001.ogg").exists())
 
             input_list_path = Path(result.input_list_path)
             self.assertTrue(input_list_path.exists())
