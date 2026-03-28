@@ -2,10 +2,19 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from pathlib import Path
+from typing import Literal
 
 from duolingal.core.workspace import load_project_manifest
 from duolingal.domain.models import GptSovitsBatchItem, GptSovitsBatchResult
+
+ReferenceMode = Literal["anchor", "per-line", "auto"]
+PromptSource = Literal["anchor", "self", "anchor-fallback"]
+
+_REFERENCE_MODES: set[str] = {"anchor", "per-line", "auto"}
+_PROMPT_STRIP_RE = re.compile(r"[「」『』（）()\[\]【】〈〉《》〔〕…—ー・,，、。！？!?.~〜\-　\s]")
+_KANA_ONLY_RE = re.compile(r"[ぁ-ゖァ-ヺー]+")
 
 
 def prepare_gptsovits_batch(
@@ -14,9 +23,12 @@ def prepare_gptsovits_batch(
     *,
     limit: int = 10,
     prompt_line_id: str | None = None,
+    reference_mode: ReferenceMode = "anchor",
 ) -> GptSovitsBatchResult:
     if limit < 1:
         raise ValueError("Batch size must be at least 1.")
+    if reference_mode not in _REFERENCE_MODES:
+        raise ValueError(f"Unsupported GPT-SoVITS reference mode: {reference_mode}")
 
     manifest = load_project_manifest(project_root)
     resolved_project_root = Path(manifest.workspace_path).resolve()
@@ -32,7 +44,7 @@ def prepare_gptsovits_batch(
     if not valid_rows:
         raise ValueError(f"No valid GPT-SoVITS preview rows found for speaker: {speaker_name}")
 
-    prompt_row = _pick_prompt_row(valid_rows, prompt_line_id)
+    anchor_row = _pick_prompt_row(valid_rows, prompt_line_id)
     target_rows = valid_rows[:limit]
 
     batch_name = f"first-{len(target_rows):02d}-en"
@@ -48,8 +60,17 @@ def prepare_gptsovits_batch(
     items: list[GptSovitsBatchItem] = []
     request_rows: list[dict[str, str]] = []
     request_jsonl_lines: list[str] = []
+    anchor_fallback_count = 0
 
     for index, row in enumerate(target_rows, start=1):
+        prompt_row, prompt_source = _select_prompt_row(
+            target_row=row,
+            anchor_row=anchor_row,
+            reference_mode=reference_mode,
+        )
+        if prompt_source == "anchor-fallback":
+            anchor_fallback_count += 1
+
         voice_file = Path(row["audio_path"]).name
         output_file_name = f"{Path(voice_file).stem}.wav"
         output_path = output_dir / output_file_name
@@ -61,6 +82,10 @@ def prepare_gptsovits_batch(
             jp_text=row["jp_text"],
             en_text=row["en_text"],
             output_file_name=output_file_name,
+            prompt_line_id=prompt_row["line_id"],
+            prompt_audio_path=prompt_row["audio_path"],
+            prompt_text=prompt_row["jp_text"],
+            prompt_source=prompt_source,
         )
         items.append(item)
 
@@ -72,6 +97,10 @@ def prepare_gptsovits_batch(
                 "source_audio_path": item.source_audio_path,
                 "jp_text": item.jp_text,
                 "en_text": item.en_text,
+                "prompt_line_id": item.prompt_line_id,
+                "prompt_audio_path": item.prompt_audio_path,
+                "prompt_text": item.prompt_text,
+                "prompt_source": item.prompt_source,
                 "output_file_name": item.output_file_name,
                 "output_path": str(output_path),
             }
@@ -87,8 +116,8 @@ def prepare_gptsovits_batch(
                     "request": {
                         "text": item.en_text,
                         "text_lang": "en",
-                        "ref_audio_path": prompt_row["audio_path"],
-                        "prompt_text": prompt_row["jp_text"],
+                        "ref_audio_path": item.prompt_audio_path,
+                        "prompt_text": item.prompt_text,
                         "prompt_lang": "ja",
                         "media_type": "wav",
                     },
@@ -108,6 +137,10 @@ def prepare_gptsovits_batch(
                 "source_audio_path",
                 "jp_text",
                 "en_text",
+                "prompt_line_id",
+                "prompt_audio_path",
+                "prompt_text",
+                "prompt_source",
                 "output_file_name",
                 "output_path",
             ],
@@ -124,10 +157,12 @@ def prepare_gptsovits_batch(
     notes_path.write_text(
         _build_notes(
             speaker_name=speaker_name,
-            prompt_line_id=prompt_row["line_id"],
-            prompt_audio_path=prompt_row["audio_path"],
-            prompt_text=prompt_row["jp_text"],
+            reference_mode=reference_mode,
+            anchor_line_id=anchor_row["line_id"],
+            anchor_audio_path=anchor_row["audio_path"],
+            anchor_text=anchor_row["jp_text"],
             item_count=len(items),
+            anchor_fallback_count=anchor_fallback_count,
         ),
         encoding="utf-8",
         newline="\n",
@@ -141,14 +176,17 @@ def prepare_gptsovits_batch(
         request_list_path=str(request_list_path),
         request_table_path=str(request_table_path),
         invoke_script_path=str(invoke_script_path),
-        prompt_line_id=prompt_row["line_id"],
-        prompt_audio_path=prompt_row["audio_path"],
-        prompt_text=prompt_row["jp_text"],
+        reference_mode=reference_mode,
+        prompt_line_id=anchor_row["line_id"],
+        prompt_audio_path=anchor_row["audio_path"],
+        prompt_text=anchor_row["jp_text"],
         item_count=len(items),
         items=items,
         notes=[
             "requests.jsonl follows the official GPT-SoVITS api_v2 request shape for /tts.",
-            "This batch keeps one Japanese reference audio and prompt text, then asks GPT-SoVITS to synthesize English targets.",
+            "reference_mode=anchor keeps one Japanese reference line for the whole batch.",
+            "reference_mode=per-line uses each row's own JP text and audio as the GPT-SoVITS prompt.",
+            "reference_mode=auto prefers per-line prompts, but falls back to the anchor prompt for very short or interjection-like JP lines.",
             "Outputs are staged as WAV first for debugging. Convert to OGG only after the spoken English passes QA.",
         ],
     )
@@ -182,6 +220,30 @@ def _pick_prompt_row(rows: list[dict[str, str]], prompt_line_id: str | None) -> 
             return row
 
     raise ValueError(f"Prompt line was not found in GPT-SoVITS preview data: {prompt_line_id}")
+
+
+def _select_prompt_row(
+    *,
+    target_row: dict[str, str],
+    anchor_row: dict[str, str],
+    reference_mode: ReferenceMode,
+) -> tuple[dict[str, str], PromptSource]:
+    if reference_mode == "anchor":
+        return anchor_row, "anchor"
+    if reference_mode == "per-line":
+        return target_row, "self"
+    if _looks_weak_as_prompt(target_row.get("jp_text") or ""):
+        return anchor_row, "anchor-fallback"
+    return target_row, "self"
+
+
+def _looks_weak_as_prompt(text: str) -> bool:
+    core_text = _PROMPT_STRIP_RE.sub("", text)
+    if len(core_text) < 3:
+        return True
+    if len(core_text) <= 5 and _KANA_ONLY_RE.fullmatch(core_text):
+        return True
+    return False
 
 
 def _build_invoke_script(request_list_path: Path, output_dir: Path) -> str:
@@ -226,21 +288,35 @@ Get-Content $requestList -Encoding UTF8 | ForEach-Object {{
 def _build_notes(
     *,
     speaker_name: str,
-    prompt_line_id: str,
-    prompt_audio_path: str,
-    prompt_text: str,
+    reference_mode: ReferenceMode,
+    anchor_line_id: str,
+    anchor_audio_path: str,
+    anchor_text: str,
     item_count: int,
+    anchor_fallback_count: int,
 ) -> str:
+    mode_lines = {
+        "anchor": "整批固定使用一条参考句，最稳，但跨句语气恢复有限。",
+        "per-line": "每句都使用自己的日语参考句和参考音频，更容易带回原句语气。",
+        "auto": "优先每句自带参考；如果日语参考太短、太像语气词，再回退到锚点参考句。",
+    }
     return (
         "# GPT-SoVITS 英文合成批次\n\n"
         f"- 角色：`{speaker_name}`\n"
         f"- 条目数：`{item_count}`\n"
-        f"- 参考台词 line_id：`{prompt_line_id}`\n"
-        f"- 参考音频：`{prompt_audio_path}`\n"
-        f"- 参考日文：`{prompt_text}`\n\n"
+        f"- 参考模式：`{reference_mode}`\n"
+        f"- 锚点 line_id：`{anchor_line_id}`\n"
+        f"- 锚点音频：`{anchor_audio_path}`\n"
+        f"- 锚点日文：`{anchor_text}`\n"
+        f"- auto 回退次数：`{anchor_fallback_count}`\n\n"
+        f"{mode_lines[reference_mode]}\n\n"
         "## 用法\n\n"
         "1. 先按 GPT-SoVITS 官方 README 启动 `api_v2.py`\n"
         "2. 在当前目录运行 `invoke_api_v2.ps1`\n"
         "3. 生成结果会写到 `outputs/`\n"
-        "4. 先听 WAV，确认英文自然度通过，再决定是否转成 OGG 回灌游戏\n"
+        "4. 先听 WAV，确认英文自然度通过，再决定是否转成 OGG 回灌游戏\n\n"
+        "## 什么时候不适合强行每句自带参考\n\n"
+        "- 如果某句日文几乎只有语气词，比如 `えっ`、`うむ`、`……`，它能提供的韵律上下文很弱\n"
+        "- 即使已经训练出角色基座音色，参考句仍然会影响当前句子的停顿、情绪和落点\n"
+        "- 所以 `auto` 往往比无脑 `per-line` 更稳，尤其适合中途试听和批量首轮 QA\n"
     )

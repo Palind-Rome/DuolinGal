@@ -171,12 +171,14 @@ class ProjectService:
         *,
         limit: int = 10,
         prompt_line_id: str | None = None,
+        reference_mode: str = "anchor",
     ) -> GptSovitsBatchResult:
         return prepare_gptsovits_batch_inputs(
             project_root,
             speaker_name,
             limit=limit,
             prompt_line_id=prompt_line_id,
+            reference_mode=reference_mode,
         )
 
     def prepare_gptsovits_reinject(

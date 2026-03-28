@@ -47,7 +47,7 @@ python -m duolingal prepare-poc "<PROJECT_ROOT>" "<VOICE_DIR>"
 python -m duolingal prepare-patch "<PROJECT_ROOT>" "<OVERRIDE_DIR>"
 python -m duolingal export-dataset "<PROJECT_ROOT>" "<VOICE_DIR>"
 python -m duolingal prepare-gptsovits "<PROJECT_ROOT>"
-python -m duolingal prepare-gptsovits-batch "<PROJECT_ROOT>" --speaker "<SPEAKER_NAME>" --limit 10
+python -m duolingal prepare-gptsovits-batch "<PROJECT_ROOT>" --speaker "<SPEAKER_NAME>" --limit 10 --reference-mode auto
 python -m duolingal prepare-gptsovits-reinject "<PROJECT_ROOT>" "<BATCH_DIR>" --target-voice-file "<TARGET_VOICE_FILE>" --source-output-name "<OUTPUT_WAV_NAME>"
 python -m duolingal prepare-gptsovits-train "<PROJECT_ROOT>" --speaker "<SPEAKER_NAME>"
 ```

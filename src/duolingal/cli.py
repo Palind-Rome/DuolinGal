@@ -88,6 +88,12 @@ def main(argv: list[str] | None = None) -> int:
     gptsovits_batch_parser.add_argument("--speaker", required=True, help="Exact speaker_name to prepare.")
     gptsovits_batch_parser.add_argument("--limit", type=int, default=10, help="How many English lines to stage.")
     gptsovits_batch_parser.add_argument("--prompt-line-id", help="Optional line_id to force as the reference prompt.")
+    gptsovits_batch_parser.add_argument(
+        "--reference-mode",
+        choices=["anchor", "per-line", "auto"],
+        default="anchor",
+        help="How GPT-SoVITS reference audio/text should be chosen for each target line.",
+    )
 
     gptsovits_reinject_parser = subparsers.add_parser(
         "prepare-gptsovits-reinject",
@@ -220,6 +226,7 @@ def main(argv: list[str] | None = None) -> int:
             args.speaker,
             limit=args.limit,
             prompt_line_id=args.prompt_line_id,
+            reference_mode=args.reference_mode,
         )
         _emit_json(result.model_dump(mode="json", exclude_none=True))
         return 0

@@ -277,6 +277,7 @@ class PrepareGptSovitsBatchRequest(BaseModel):
     speaker_name: str
     limit: int = 10
     prompt_line_id: str | None = None
+    reference_mode: Literal["anchor", "per-line", "auto"] = "anchor"
 
 
 class PrepareGptSovitsTrainingRequest(BaseModel):
@@ -388,6 +389,10 @@ class GptSovitsBatchItem(BaseModel):
     jp_text: str
     en_text: str
     output_file_name: str
+    prompt_line_id: str
+    prompt_audio_path: str
+    prompt_text: str
+    prompt_source: Literal["anchor", "self", "anchor-fallback"]
 
 
 class GptSovitsBatchResult(BaseModel):
@@ -398,6 +403,7 @@ class GptSovitsBatchResult(BaseModel):
     request_list_path: str
     request_table_path: str
     invoke_script_path: str
+    reference_mode: Literal["anchor", "per-line", "auto"] = "anchor"
     prompt_line_id: str
     prompt_audio_path: str
     prompt_text: str

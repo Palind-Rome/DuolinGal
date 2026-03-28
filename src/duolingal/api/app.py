@@ -177,6 +177,7 @@ def create_app() -> FastAPI:
                 request.speaker_name,
                 limit=request.limit,
                 prompt_line_id=request.prompt_line_id,
+                reference_mode=request.reference_mode,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
