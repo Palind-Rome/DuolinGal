@@ -5,7 +5,10 @@ from pathlib import Path
 from duolingal.core.analyzer import analyze_game_directory
 from duolingal.core.dataset_export import export_tts_dataset
 from duolingal.core.gptsovits_batch import prepare_gptsovits_batch as prepare_gptsovits_batch_inputs
-from duolingal.core.gptsovits_reinject import prepare_gptsovits_reinject as prepare_gptsovits_reinject_output
+from duolingal.core.gptsovits_reinject import (
+    prepare_gptsovits_reinject as prepare_gptsovits_reinject_output,
+    prepare_gptsovits_reinject_batch as prepare_gptsovits_reinject_batch_output,
+)
 from duolingal.core.gptsovits_training import prepare_gptsovits_training as prepare_gptsovits_training_workspace
 from duolingal.core.decompiler import decompile_project_scripts
 from duolingal.core.extractor import extract_project_packages
@@ -24,6 +27,7 @@ from duolingal.domain.models import (
     ExtractionResult,
     GameAnalysis,
     GptSovitsPreparationResult,
+    GptSovitsReinjectBatchResult,
     GptSovitsReinjectResult,
     GptSovitsTrainingPreparationResult,
     KrkrDumpPreparationResult,
@@ -196,6 +200,23 @@ class ProjectService:
             batch_dir,
             target_voice_file=target_voice_file,
             source_output_name=source_output_name,
+            target_sample_rate=target_sample_rate,
+            archive_name=archive_name,
+        )
+
+    def prepare_gptsovits_reinject_batch(
+        self,
+        project_root: str | Path,
+        batch_dir: str | Path,
+        *,
+        limit: int | None = None,
+        target_sample_rate: int = 48000,
+        archive_name: str | None = None,
+    ) -> GptSovitsReinjectBatchResult:
+        return prepare_gptsovits_reinject_batch_output(
+            project_root,
+            batch_dir,
+            limit=limit,
             target_sample_rate=target_sample_rate,
             archive_name=archive_name,
         )

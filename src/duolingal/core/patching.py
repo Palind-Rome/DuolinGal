@@ -26,6 +26,8 @@ def prepare_patch_staging(
     resolved_archive_name = archive_name or _default_archive_name(manifest.resource_packages)
     staging_root = resolved_project_root / "patch-build"
     archive_staging_dir = staging_root / resolved_archive_name
+    if archive_staging_dir.exists():
+        shutil.rmtree(archive_staging_dir)
     archive_staging_dir.mkdir(parents=True, exist_ok=True)
 
     copied_files: list[str] = []

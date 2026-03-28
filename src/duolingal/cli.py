@@ -106,6 +106,16 @@ def main(argv: list[str] | None = None) -> int:
     gptsovits_reinject_parser.add_argument("--target-sample-rate", type=int, default=48000, help="Target OGG sample rate for the game-ready output.")
     gptsovits_reinject_parser.add_argument("--archive-name", help="Optional patch archive name override, such as patch2.")
 
+    gptsovits_reinject_batch_parser = subparsers.add_parser(
+        "prepare-gptsovits-reinject-batch",
+        help="Convert a GPT-SoVITS batch output directory into a game-ready OGG override tree and patch staging.",
+    )
+    gptsovits_reinject_batch_parser.add_argument("project_root", help="Initialized project workspace.")
+    gptsovits_reinject_batch_parser.add_argument("batch_dir", help="GPT-SoVITS batch directory that contains outputs/ and requests.csv.")
+    gptsovits_reinject_batch_parser.add_argument("--limit", type=int, help="Optional maximum number of batch rows to convert.")
+    gptsovits_reinject_batch_parser.add_argument("--target-sample-rate", type=int, default=48000, help="Target OGG sample rate for the game-ready outputs.")
+    gptsovits_reinject_batch_parser.add_argument("--archive-name", help="Optional patch archive name override, such as patch2.")
+
     gptsovits_train_parser = subparsers.add_parser(
         "prepare-gptsovits-train",
         help="Prepare an official GPT-SoVITS training workspace for one speaker.",
@@ -237,6 +247,17 @@ def main(argv: list[str] | None = None) -> int:
             args.batch_dir,
             target_voice_file=args.target_voice_file,
             source_output_name=args.source_output_name,
+            target_sample_rate=args.target_sample_rate,
+            archive_name=args.archive_name,
+        )
+        _emit_json(result.model_dump(mode="json", exclude_none=True))
+        return 0
+
+    if args.command == "prepare-gptsovits-reinject-batch":
+        result = service.prepare_gptsovits_reinject_batch(
+            args.project_root,
+            args.batch_dir,
+            limit=args.limit,
             target_sample_rate=args.target_sample_rate,
             archive_name=args.archive_name,
         )

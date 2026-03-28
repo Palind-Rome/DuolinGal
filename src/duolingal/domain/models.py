@@ -462,3 +462,38 @@ class GptSovitsReinjectResult(BaseModel):
     patch_pack_script_path: str
     notes_path: str
     notes: list[str] = Field(default_factory=list)
+
+
+class PrepareGptSovitsReinjectBatchRequest(BaseModel):
+    project_root: str
+    batch_dir: str
+    limit: int | None = None
+    target_sample_rate: int = 48000
+    archive_name: str | None = None
+
+
+class GptSovitsReinjectBatchItem(BaseModel):
+    line_id: str
+    target_voice_file: str
+    source_output_name: str
+    source_output_path: str
+    game_ready_voice_path: str
+    en_text: str
+    prompt_source: Literal["anchor", "self", "anchor-fallback"] | None = None
+
+
+class GptSovitsReinjectBatchResult(BaseModel):
+    project_root: str
+    batch_dir: str
+    workspace_dir: str
+    override_root: str
+    target_sample_rate: int
+    item_count: int
+    items: list[GptSovitsReinjectBatchItem] = Field(default_factory=list)
+    patch_archive_name: str
+    patch_staging_root: str
+    patch_archive_staging_dir: str
+    patch_manifest_path: str
+    patch_pack_script_path: str
+    notes_path: str
+    notes: list[str] = Field(default_factory=list)
