@@ -7,6 +7,7 @@ from duolingal.core.decompiler import decompile_project_scripts
 from duolingal.core.extractor import extract_project_packages
 from duolingal.core.krkrdump import prepare_project_krkrdump
 from duolingal.core.parser import build_lines_for_project
+from duolingal.core.patching import prepare_patch_staging
 from duolingal.core.poc import prepare_single_line_poc
 from duolingal.core.preflight import run_project_preflight
 from duolingal.core.tool_config import load_toolchain_config
@@ -17,6 +18,7 @@ from duolingal.domain.models import (
     GameAnalysis,
     KrkrDumpPreparationResult,
     LinesBuildResult,
+    PatchPreparationResult,
     PocPreparationResult,
     PreflightReport,
     PreflightStage,
@@ -109,4 +111,17 @@ class ProjectService:
             line_id=line_id,
             speaker_name=speaker_name,
             contains=contains,
+        )
+
+    def prepare_patch(
+        self,
+        project_root: str | Path,
+        source_root: str | Path,
+        *,
+        archive_name: str | None = None,
+    ) -> PatchPreparationResult:
+        return prepare_patch_staging(
+            project_root,
+            source_root,
+            archive_name=archive_name,
         )

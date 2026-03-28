@@ -16,10 +16,12 @@ from duolingal.domain.models import (
     InitProjectRequest,
     KrkrDumpPreparationResult,
     LinesBuildResult,
+    PatchPreparationResult,
     PocPreparationResult,
     PreflightReport,
     PreflightRequest,
     PreparePocRequest,
+    PreparePatchRequest,
     PrepareKrkrDumpRequest,
     ProjectManifest,
     ScriptDecompileResult,
@@ -119,6 +121,17 @@ def create_app() -> FastAPI:
                 line_id=request.line_id,
                 speaker_name=request.speaker_name,
                 contains=request.contains,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/projects/prepare-patch", response_model=PatchPreparationResult)
+    def prepare_patch(request: PreparePatchRequest) -> PatchPreparationResult:
+        try:
+            return service.prepare_patch(
+                request.project_root,
+                request.source_root,
+                archive_name=request.archive_name,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

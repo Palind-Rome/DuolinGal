@@ -247,6 +247,12 @@ class PreparePocRequest(BaseModel):
     contains: str | None = None
 
 
+class PreparePatchRequest(BaseModel):
+    project_root: str
+    source_root: str
+    archive_name: str | None = None
+
+
 class RawScriptNode(BaseModel):
     scene_id: str
     order_index: int
@@ -285,4 +291,17 @@ class PocPreparationResult(BaseModel):
     game_ready_voice_path: str
     metadata_path: str
     notes_path: str
+    notes: list[str] = Field(default_factory=list)
+
+
+class PatchPreparationResult(BaseModel):
+    project_root: str
+    source_root: str
+    archive_name: str
+    staging_root: str
+    archive_staging_dir: str
+    pack_script_path: str
+    manifest_path: str
+    file_count: int
+    copied_files: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)

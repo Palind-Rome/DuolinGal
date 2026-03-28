@@ -321,6 +321,38 @@ class CliTests(unittest.TestCase):
             self.assertEqual(payload["voice_file"], "yos100_001.ogg")
             self.assertTrue((project_root / "poc" / "scene001-0001" / "game-ready" / "unencrypted" / "yos100_001.ogg").exists())
 
+    def test_prepare_patch_command_creates_patch_staging(self) -> None:
+        with temporary_workspace() as temp_dir:
+            game_root = temp_dir / "game"
+            projects_root = temp_dir / "projects"
+            source_root = temp_dir / "override"
+            source_root.mkdir(parents=True, exist_ok=True)
+
+            for name in ("voice.xp3", "scn.xp3", "patch.xp3", "KAGParserEx.dll", "psbfile.dll", "senrenbanka.exe"):
+                touch(game_root / name)
+
+            analysis = analyze_game_directory(game_root)
+            manifest = initialize_project_workspace(analysis, project_id="senren-patch-cli", projects_root=projects_root)
+            project_root = projects_root / "senren-patch-cli"
+            self.assertEqual(str(project_root), manifest.workspace_path)
+
+            (source_root / "uts001_001.ogg").write_bytes(b"patch-data")
+
+            command_stdout = io.StringIO()
+            with redirect_stdout(command_stdout):
+                exit_code = main(
+                    [
+                        "prepare-patch",
+                        str(project_root),
+                        str(source_root),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(command_stdout.getvalue())
+            self.assertEqual(payload["archive_name"], "patch2")
+            self.assertTrue((project_root / "patch-build" / "patch2" / "uts001_001.ogg").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

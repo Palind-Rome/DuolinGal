@@ -61,6 +61,11 @@ def main(argv: list[str] | None = None) -> int:
     poc_parser.add_argument("--speaker", help="Optional exact speaker_name filter.")
     poc_parser.add_argument("--contains", help="Optional substring filter across speaker, JP, and EN text.")
 
+    patch_parser = subparsers.add_parser("prepare-patch", help="Prepare a patch staging directory from an override tree.")
+    patch_parser.add_argument("project_root", help="Initialized project workspace.")
+    patch_parser.add_argument("source_root", help="Override tree to copy into the patch archive staging directory.")
+    patch_parser.add_argument("--archive-name", help="Optional archive name override, such as patch2.")
+
     args = parser.parse_args(argv)
     service = ProjectService()
 
@@ -128,6 +133,15 @@ def main(argv: list[str] | None = None) -> int:
             line_id=args.line_id,
             speaker_name=args.speaker,
             contains=args.contains,
+        )
+        _emit_json(result.model_dump(mode="json", exclude_none=True))
+        return 0
+
+    if args.command == "prepare-patch":
+        result = service.prepare_patch(
+            args.project_root,
+            args.source_root,
+            archive_name=args.archive_name,
         )
         _emit_json(result.model_dump(mode="json", exclude_none=True))
         return 0
