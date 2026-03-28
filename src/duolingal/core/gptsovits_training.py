@@ -100,6 +100,7 @@ def prepare_gptsovits_training(
     prepare_stage2_script_path = scripts_dir / "run-prepare-stage2.ps1"
     prepare_stage3_script_path = scripts_dir / "run-prepare-stage3.ps1"
     prepare_all_script_path = scripts_dir / "run-prepare-all.ps1"
+    train_gpt_launcher_path = scripts_dir / "train-gpt-launcher.py"
     train_gpt_script_path = scripts_dir / "run-train-gpt.ps1"
     train_sovits_script_path = scripts_dir / "run-train-sovits.ps1"
     train_all_script_path = scripts_dir / "run-train-all.ps1"
@@ -136,6 +137,13 @@ def prepare_gptsovits_training(
     )
     train_gpt_script_path.write_text(
         _build_train_gpt_script(
+            train_gpt_launcher_path=train_gpt_launcher_path,
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    train_gpt_launcher_path.write_text(
+        _build_train_gpt_launcher(
             gpt_sovits_root=resolved_gpt_root,
             gpt_config_path=gpt_config_path,
             gpu=gpu,
@@ -589,13 +597,196 @@ def _build_prepare_all_script() -> str:
 
 Write-Host 'GPT-SoVITS dataset preparation finished.'
 """
+def _build_train_gpt_launcher(*, gpt_sovits_root: Path, gpt_config_path: Path, gpu: str) -> str:
+    return f"""from __future__ import annotations
+
+import os
+import platform
+import sys
+from collections import OrderedDict
+from pathlib import Path
 
 
-def _build_train_gpt_script(*, gpt_sovits_root: Path, gpt_config_path: Path, gpu: str) -> str:
+if "_CUDA_VISIBLE_DEVICES" in os.environ:
+    os.environ["CUDA_VISIBLE_DEVICES"] = os.environ["_CUDA_VISIBLE_DEVICES"]
+
+GPT_SOVITS_ROOT = Path({json.dumps(str(gpt_sovits_root))})
+CONFIG_PATH = Path({json.dumps(str(gpt_config_path))})
+
+sys.path.insert(0, str(GPT_SOVITS_ROOT))
+sys.path.insert(0, str(GPT_SOVITS_ROOT / "GPT_SoVITS"))
+
+import torch
+from pytorch_lightning import Trainer, seed_everything
+from pytorch_lightning.callbacks import Callback, ModelCheckpoint
+from pytorch_lightning.loggers import TensorBoardLogger
+from torch.utils.data import DataLoader
+
+from AR.data.bucket_sampler import DistributedBucketSampler
+from AR.data.data_module import Text2SemanticDataModule
+from AR.models.t2s_lightning_module import Text2SemanticLightningModule
+from AR.utils import get_newest_ckpt
+from AR.utils.io import load_yaml_config
+from process_ckpt import my_save
+
+
+class _EpochPrinter(Callback):
+    def on_train_epoch_start(self, trainer, pl_module):
+        print(f"Epoch {{trainer.current_epoch + 1}}/{{trainer.max_epochs}} started")
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        print(f"Epoch {{trainer.current_epoch + 1}}/{{trainer.max_epochs}} finished")
+
+
+class _SingleGpuText2SemanticDataModule(Text2SemanticDataModule):
+    def train_dataloader(self):
+        batch_size = (
+            self.config["train"]["batch_size"] // 2
+            if self.config["train"].get("if_dpo", False) is True
+            else self.config["train"]["batch_size"]
+        )
+        batch_size = max(min(batch_size, len(self._train_dataset) // 4), 1)
+        sampler = DistributedBucketSampler(self._train_dataset, num_replicas=1, rank=0, batch_size=batch_size)
+        num_workers = 0 if platform.system() == "Windows" else self.num_workers
+        kwargs = {{
+            "batch_size": batch_size,
+            "sampler": sampler,
+            "collate_fn": self._train_dataset.collate,
+            "num_workers": num_workers,
+            "persistent_workers": num_workers > 0,
+        }}
+        if num_workers > 0:
+            kwargs["prefetch_factor"] = 16
+        return DataLoader(self._train_dataset, **kwargs)
+
+    def val_dataloader(self):
+        num_workers = 0 if platform.system() == "Windows" else max(self.num_workers, 12)
+        kwargs = {{
+            "batch_size": 1,
+            "shuffle": False,
+            "collate_fn": self._train_dataset.collate,
+            "num_workers": num_workers,
+            "persistent_workers": num_workers > 0,
+        }}
+        if num_workers > 0:
+            kwargs["prefetch_factor"] = 16
+        return DataLoader(self._dev_dataset, **kwargs)
+
+
+class _ModelCheckpoint(ModelCheckpoint):
+    def __init__(
+        self,
+        config,
+        if_save_latest,
+        if_save_every_weights,
+        half_weights_save_dir,
+        exp_name,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.if_save_latest = if_save_latest
+        self.if_save_every_weights = if_save_every_weights
+        self.half_weights_save_dir = half_weights_save_dir
+        self.exp_name = exp_name
+        self.config = config
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        if self._should_save_on_train_epoch_end(trainer):
+            monitor_candidates = self._monitor_candidates(trainer)
+            if self._every_n_epochs >= 1 and (trainer.current_epoch + 1) % self._every_n_epochs == 0:
+                if self.if_save_latest is True:
+                    to_clean = list(os.listdir(self.dirpath))
+                self._save_topk_checkpoint(trainer, monitor_candidates)
+                if self.if_save_latest is True:
+                    for name in to_clean:
+                        try:
+                            os.remove(f"{{self.dirpath}}/{{name}}")
+                        except OSError:
+                            pass
+                if self.if_save_every_weights is True:
+                    to_save_od = OrderedDict()
+                    to_save_od["weight"] = OrderedDict()
+                    dictt = trainer.strategy._lightning_module.state_dict()
+                    for key in dictt:
+                        to_save_od["weight"][key] = dictt[key].half()
+                    to_save_od["config"] = self.config
+                    to_save_od["info"] = f"GPT-e{{trainer.current_epoch + 1}}"
+                    if os.environ.get("LOCAL_RANK", "0") == "0":
+                        my_save(
+                            to_save_od,
+                            f"{{self.half_weights_save_dir}}/{{self.exp_name}}-e{{trainer.current_epoch + 1}}.ckpt",
+                        )
+            self._save_last_checkpoint(trainer, monitor_candidates)
+
+
+def main():
+    config = load_yaml_config(str(CONFIG_PATH))
+
+    output_dir = Path(config["output_dir"])
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    ckpt_dir = output_dir / "ckpt"
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+
+    seed_everything(config["train"]["seed"], workers=True)
+
+    ckpt_callback = _ModelCheckpoint(
+        config=config,
+        if_save_latest=config["train"]["if_save_latest"],
+        if_save_every_weights=config["train"]["if_save_every_weights"],
+        half_weights_save_dir=config["train"]["half_weights_save_dir"],
+        exp_name=config["train"]["exp_name"],
+        save_top_k=-1,
+        monitor="top_3_acc",
+        mode="max",
+        save_on_train_epoch_end=True,
+        every_n_epochs=config["train"]["save_every_n_epoch"],
+        dirpath=ckpt_dir,
+    )
+    logger = TensorBoardLogger(name=output_dir.stem, save_dir=output_dir)
+
+    trainer = Trainer(
+        max_epochs=config["train"]["epochs"],
+        accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        devices=1 if torch.cuda.is_available() else 1,
+        benchmark=False,
+        fast_dev_run=False,
+        strategy="auto",
+        precision=config["train"]["precision"],
+        logger=logger,
+        num_sanity_val_steps=0,
+        callbacks=[ckpt_callback, _EpochPrinter()],
+        use_distributed_sampler=False,
+        limit_val_batches=0,
+        enable_progress_bar=False,
+    )
+
+    model = Text2SemanticLightningModule(config, output_dir)
+    data_module = _SingleGpuText2SemanticDataModule(
+        config,
+        train_semantic_path=config["train_semantic_path"],
+        train_phoneme_path=config["train_phoneme_path"],
+    )
+
+    try:
+        newest_ckpt_name = get_newest_ckpt(os.listdir(ckpt_dir))
+        ckpt_path = ckpt_dir / newest_ckpt_name
+    except Exception:
+        ckpt_path = None
+
+    print("ckpt_path:", ckpt_path)
+    trainer.fit(model, data_module, ckpt_path=ckpt_path)
+    print("GPT training finished.")
+
+
+if __name__ == "__main__":
+    main()
+"""
+
+
+def _build_train_gpt_script(*, train_gpt_launcher_path: Path) -> str:
     return f"""$ErrorActionPreference = 'Stop'
 $env:PYTHONNOUSERSITE = '1'
-$env:PYTHONPATH = '{gpt_sovits_root};{gpt_sovits_root / "GPT_SoVITS"}'
-$env:_CUDA_VISIBLE_DEVICES = '{gpu}'
 $env:hz = '25hz'
 
 $pythonExe = if ($env:CONDA_PREFIX -and (Test-Path (Join-Path $env:CONDA_PREFIX 'python.exe'))) {{
@@ -606,8 +797,7 @@ $pythonExe = if ($env:CONDA_PREFIX -and (Test-Path (Join-Path $env:CONDA_PREFIX 
   (Get-Command python -ErrorAction Stop).Source
 }}
 
-Set-Location '{gpt_sovits_root}'
-& $pythonExe -s GPT_SoVITS/s1_train.py --config_file '{gpt_config_path}'
+& $pythonExe -s '{train_gpt_launcher_path}'
 """
 
 

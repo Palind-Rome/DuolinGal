@@ -99,6 +99,17 @@ class GptSovitsTrainingPreparationTests(unittest.TestCase):
             self.assertIn("UTF8Encoding($false)", prepare_stage3_script_text)
             self.assertIn('@("item_name`tsemantic_audio")', prepare_stage3_script_text)
 
+            train_gpt_script_text = Path(result.train_gpt_script_path).read_text(encoding="utf-8")
+            self.assertIn("train-gpt-launcher.py", train_gpt_script_text)
+
+            train_gpt_launcher_path = Path(result.train_gpt_script_path).with_name("train-gpt-launcher.py")
+            self.assertTrue(train_gpt_launcher_path.exists())
+            train_gpt_launcher_text = train_gpt_launcher_path.read_text(encoding="utf-8")
+            self.assertIn('devices=1 if torch.cuda.is_available() else 1', train_gpt_launcher_text)
+            self.assertIn('strategy="auto"', train_gpt_launcher_text)
+            self.assertIn("enable_progress_bar=False", train_gpt_launcher_text)
+            self.assertIn("num_replicas=1, rank=0", train_gpt_launcher_text)
+
             gpt_config_text = Path(result.gpt_config_path).read_text(encoding="utf-8")
             self.assertIn("pretrained_s1", gpt_config_text)
             self.assertIn("mur-v2", gpt_config_text)
