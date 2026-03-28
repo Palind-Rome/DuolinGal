@@ -558,7 +558,8 @@ $config = Get-Content $env:s2config_path -Raw -Encoding UTF8 | ConvertFrom-Json
 if ($config.model -and $config.model.PSObject.Properties.Name -contains 'version') {{
   $null = $config.model.PSObject.Properties.Remove('version')
 }}
-$config | ConvertTo-Json -Depth 100 | Set-Content -Encoding UTF8 $stage3Config
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($stage3Config, ($config | ConvertTo-Json -Depth 100), $utf8NoBom)
 $env:s2config_path = $stage3Config
 
 Set-Location '{common_paths.gpt_sovits_root}'
@@ -569,7 +570,8 @@ $merged = Join-Path $env:opt_dir '6-name2semantic.tsv'
 if (-not (Test-Path $partial -PathType Leaf)) {{
   throw "Stage 3 output not found: $partial"
 }}
-@('item_name`tsemantic_audio') + (Get-Content $partial -Encoding UTF8) | Set-Content -Encoding UTF8 $merged
+$semanticLines = @('item_name`tsemantic_audio') + (Get-Content $partial -Encoding UTF8)
+[System.IO.File]::WriteAllLines($merged, $semanticLines, $utf8NoBom)
 Remove-Item $partial -Force
 if (Test-Path $stage3Config -PathType Leaf) {{
   Remove-Item $stage3Config -Force

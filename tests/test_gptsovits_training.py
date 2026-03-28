@@ -96,6 +96,7 @@ class GptSovitsTrainingPreparationTests(unittest.TestCase):
             prepare_stage3_script_text = Path(result.prepare_stage3_script_path).read_text(encoding="utf-8")
             self.assertIn("s2config.stage3.json", prepare_stage3_script_text)
             self.assertIn("Properties.Remove('version')", prepare_stage3_script_text)
+            self.assertIn("UTF8Encoding($false)", prepare_stage3_script_text)
 
             gpt_config_text = Path(result.gpt_config_path).read_text(encoding="utf-8")
             self.assertIn("pretrained_s1", gpt_config_text)
