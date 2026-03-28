@@ -219,4 +219,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\run-train-sovits.ps1
 - 当前仓库已经验证了 GPT 第一阶段在 Windows 单卡上的稳定启动；SoVITS 阶段现在也会生成同类 launcher，但仍以本轮实际重跑结果为准
 - 训练停止条件、最佳 epoch 选择、试听回归判断，目前主要依赖人工判断
 - 生成语音的响度、语气稳定性、角色一致性，还没有完全自动化的 QA 规则
+- 英文推理里的专有名词、角色名、日语罗马字词汇，目前还没有单独的发音词典或文本预处理规则；例如 `Murasame` 这类词，后续值得加入自定义 pronunciation / G2P 映射，避免模型按默认英语自然拼读去念
 - Web GUI 还没有落地，当前仍然偏向本地脚本工作流
