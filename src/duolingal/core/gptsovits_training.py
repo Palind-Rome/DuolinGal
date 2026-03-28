@@ -570,7 +570,7 @@ $merged = Join-Path $env:opt_dir '6-name2semantic.tsv'
 if (-not (Test-Path $partial -PathType Leaf)) {{
   throw "Stage 3 output not found: $partial"
 }}
-$semanticLines = @('item_name`tsemantic_audio') + (Get-Content $partial -Encoding UTF8)
+$semanticLines = @("item_name`tsemantic_audio") + (Get-Content $partial -Encoding UTF8)
 [System.IO.File]::WriteAllLines($merged, $semanticLines, $utf8NoBom)
 Remove-Item $partial -Force
 if (Test-Path $stage3Config -PathType Leaf) {{
