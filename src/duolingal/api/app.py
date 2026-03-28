@@ -10,6 +10,7 @@ from duolingal.domain.models import (
     AnalyzeRequest,
     BuildLinesRequest,
     DecompileScriptsRequest,
+    DatasetExportResult,
     ExtractionResult,
     ExtractRequest,
     GameAnalysis,
@@ -22,6 +23,7 @@ from duolingal.domain.models import (
     PreflightRequest,
     PreparePocRequest,
     PreparePatchRequest,
+    ExportDatasetRequest,
     PrepareKrkrDumpRequest,
     ProjectManifest,
     ScriptDecompileResult,
@@ -132,6 +134,18 @@ def create_app() -> FastAPI:
                 request.project_root,
                 request.source_root,
                 archive_name=request.archive_name,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/projects/export-dataset", response_model=DatasetExportResult)
+    def export_dataset(request: ExportDatasetRequest) -> DatasetExportResult:
+        try:
+            return service.export_dataset(
+                request.project_root,
+                request.voice_root,
+                speaker_name=request.speaker_name,
+                min_lines=request.min_lines,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

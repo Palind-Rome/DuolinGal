@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from duolingal.core.analyzer import analyze_game_directory
+from duolingal.core.dataset_export import export_tts_dataset
 from duolingal.core.decompiler import decompile_project_scripts
 from duolingal.core.extractor import extract_project_packages
 from duolingal.core.krkrdump import prepare_project_krkrdump
@@ -17,6 +18,7 @@ from duolingal.domain.models import (
     ExtractionResult,
     GameAnalysis,
     KrkrDumpPreparationResult,
+    DatasetExportResult,
     LinesBuildResult,
     PatchPreparationResult,
     PocPreparationResult,
@@ -124,4 +126,19 @@ class ProjectService:
             project_root,
             source_root,
             archive_name=archive_name,
+        )
+
+    def export_dataset(
+        self,
+        project_root: str | Path,
+        voice_root: str | Path,
+        *,
+        speaker_name: str | None = None,
+        min_lines: int = 1,
+    ) -> DatasetExportResult:
+        return export_tts_dataset(
+            project_root,
+            voice_root,
+            speaker_name=speaker_name,
+            min_lines=min_lines,
         )

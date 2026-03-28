@@ -353,6 +353,46 @@ class CliTests(unittest.TestCase):
             self.assertEqual(payload["archive_name"], "patch2")
             self.assertTrue((project_root / "patch-build" / "patch2" / "uts001_001.ogg").exists())
 
+    def test_export_dataset_command_creates_speaker_dataset(self) -> None:
+        with temporary_workspace() as temp_dir:
+            game_root = temp_dir / "game"
+            projects_root = temp_dir / "projects"
+            voice_root = temp_dir / "voice"
+            voice_root.mkdir(parents=True, exist_ok=True)
+
+            for name in ("voice.xp3", "scn.xp3", "patch.xp3", "KAGParserEx.dll", "psbfile.dll", "senrenbanka.exe"):
+                touch(game_root / name)
+
+            analysis = analyze_game_directory(game_root)
+            manifest = initialize_project_workspace(analysis, project_id="senren-dataset-cli", projects_root=projects_root)
+            project_root = projects_root / "senren-dataset-cli"
+            self.assertEqual(str(project_root), manifest.workspace_path)
+
+            dataset_dir = project_root / "dataset"
+            dataset_dir.mkdir(parents=True, exist_ok=True)
+            with (dataset_dir / "lines.csv").open("w", encoding="utf-8", newline="") as handle:
+                handle.write(
+                    "line_id,scene_id,order_index,speaker_name,voice_file,jp_text,en_text,status,evidence\n"
+                    "scene001-0001,scene001,1,Yoshino,yos100_001.ogg,jp-line,Good morning.,ready,voice_file|en_text|speaker_name|jp_text\n"
+                )
+
+            (voice_root / "yos100_001.ogg").write_bytes(b"dummy-ogg")
+
+            command_stdout = io.StringIO()
+            with redirect_stdout(command_stdout):
+                exit_code = main(
+                    [
+                        "export-dataset",
+                        str(project_root),
+                        str(voice_root),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(command_stdout.getvalue())
+            self.assertEqual(payload["speaker_count"], 1)
+            self.assertTrue((project_root / "tts-dataset" / "yoshino" / "audio" / "yos100_001.ogg").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

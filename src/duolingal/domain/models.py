@@ -253,6 +253,13 @@ class PreparePatchRequest(BaseModel):
     archive_name: str | None = None
 
 
+class ExportDatasetRequest(BaseModel):
+    project_root: str
+    voice_root: str
+    speaker_name: str | None = None
+    min_lines: int = 1
+
+
 class RawScriptNode(BaseModel):
     scene_id: str
     order_index: int
@@ -304,4 +311,22 @@ class PatchPreparationResult(BaseModel):
     manifest_path: str
     file_count: int
     copied_files: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class SpeakerDatasetSummary(BaseModel):
+    speaker_name: str
+    slug: str
+    line_count: int
+    output_dir: str
+    metadata_path: str
+
+
+class DatasetExportResult(BaseModel):
+    project_root: str
+    voice_root: str
+    output_root: str
+    speaker_count: int
+    line_count: int
+    speakers: list[SpeakerDatasetSummary] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)

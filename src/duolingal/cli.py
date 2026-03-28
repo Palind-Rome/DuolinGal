@@ -66,6 +66,12 @@ def main(argv: list[str] | None = None) -> int:
     patch_parser.add_argument("source_root", help="Override tree to copy into the patch archive staging directory.")
     patch_parser.add_argument("--archive-name", help="Optional archive name override, such as patch2.")
 
+    dataset_parser = subparsers.add_parser("export-dataset", help="Export a per-speaker TTS dataset from lines.csv and voice files.")
+    dataset_parser.add_argument("project_root", help="Initialized project workspace.")
+    dataset_parser.add_argument("voice_root", help="Extracted voice directory used for audio file lookup.")
+    dataset_parser.add_argument("--speaker", help="Optional exact speaker_name filter.")
+    dataset_parser.add_argument("--min-lines", type=int, default=1, help="Minimum line count required to keep a speaker.")
+
     args = parser.parse_args(argv)
     service = ProjectService()
 
@@ -142,6 +148,16 @@ def main(argv: list[str] | None = None) -> int:
             args.project_root,
             args.source_root,
             archive_name=args.archive_name,
+        )
+        _emit_json(result.model_dump(mode="json", exclude_none=True))
+        return 0
+
+    if args.command == "export-dataset":
+        result = service.export_dataset(
+            args.project_root,
+            args.voice_root,
+            speaker_name=args.speaker,
+            min_lines=args.min_lines,
         )
         _emit_json(result.model_dump(mode="json", exclude_none=True))
         return 0
