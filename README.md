@@ -56,6 +56,38 @@ python -m duolingal prepare-gptsovits-production "<PROJECT_ROOT>" --sync-game-ro
 python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\\tts-production\\all-cast-v1"
 ```
 
+## GPT-SoVITS Production Flow
+
+当前仓库已经支持一条可恢复的多角色量产队列，流程是：
+
+```text
+export-dataset
+  -> prepare-gptsovits
+  -> prepare-gptsovits-production
+  -> run-gptsovits-production
+  -> speaker prepare
+  -> speaker GPT
+  -> speaker SoVITS
+  -> batch infer
+  -> wav -> ogg
+  -> combined override tree
+  -> patch-build
+  -> optional game-root sync
+```
+
+更具体地说：
+
+- `prepare-gptsovits-production`
+  负责扫描角色、生成每个角色的训练工作区、写出夜跑计划和 `run-production.ps1`。
+- `run-gptsovits-production`
+  负责按计划顺序执行：
+  `前处理 -> GPT -> SoVITS -> 切权重 -> 批量推理 -> 转 OGG -> 合并覆盖树 -> 重建 patch-build`
+- 队列是可恢复的：
+  中断后重新运行同一个 `run-production.ps1`，已完成角色会跳过。
+- 队列运行时会持续更新：
+  - `production-state.json`
+  - `production-status.txt`
+
 If your environment still uses an offline extractor instead of KrkrDump, `preflight` may recommend `extract` before `decompile-scripts`.
 
 4. Run tests:
