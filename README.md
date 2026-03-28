@@ -47,6 +47,7 @@ python -m duolingal prepare-patch "<PROJECT_ROOT>" "<OVERRIDE_DIR>"
 python -m duolingal export-dataset "<PROJECT_ROOT>" "<VOICE_DIR>"
 python -m duolingal prepare-gptsovits "<PROJECT_ROOT>"
 python -m duolingal prepare-gptsovits-batch "<PROJECT_ROOT>" --speaker "<SPEAKER_NAME>" --limit 10
+python -m duolingal prepare-gptsovits-reinject "<PROJECT_ROOT>" "<BATCH_DIR>" --target-voice-file "<TARGET_VOICE_FILE>" --source-output-name "<OUTPUT_WAV_NAME>"
 ```
 
 If your environment still uses an offline extractor instead of KrkrDump, `preflight` may recommend `extract` before `decompile-scripts`.
@@ -96,6 +97,7 @@ Available routes:
 - `POST /api/projects/export-dataset`
 - `POST /api/projects/prepare-gptsovits`
 - `POST /api/projects/prepare-gptsovits-batch`
+- `POST /api/projects/prepare-gptsovits-reinject`
 
 ## Repository Layout
 
@@ -123,6 +125,7 @@ DuolinGal/
 - [Dataset Export Guide](docs/dataset-export.zh-CN.md)
 - [GPT-SoVITS Preparation Guide](docs/gptsovits-prep.zh-CN.md)
 - [GPT-SoVITS Batch Guide](docs/gptsovits-batch.zh-CN.md)
+- [GPT-SoVITS Reinject Guide](docs/gptsovits-reinject.zh-CN.md)
 - [GPT-SoVITS Local Runbook](docs/gptsovits-local-runbook.zh-CN.md)
 
 ## Boundaries

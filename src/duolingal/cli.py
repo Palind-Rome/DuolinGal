@@ -89,6 +89,17 @@ def main(argv: list[str] | None = None) -> int:
     gptsovits_batch_parser.add_argument("--limit", type=int, default=10, help="How many English lines to stage.")
     gptsovits_batch_parser.add_argument("--prompt-line-id", help="Optional line_id to force as the reference prompt.")
 
+    gptsovits_reinject_parser = subparsers.add_parser(
+        "prepare-gptsovits-reinject",
+        help="Convert one GPT-SoVITS batch output into a game-ready OGG override and patch staging.",
+    )
+    gptsovits_reinject_parser.add_argument("project_root", help="Initialized project workspace.")
+    gptsovits_reinject_parser.add_argument("batch_dir", help="GPT-SoVITS batch directory that contains outputs/ and requests.csv.")
+    gptsovits_reinject_parser.add_argument("--target-voice-file", required=True, help="Target game voice file name, such as uts001_001.ogg.")
+    gptsovits_reinject_parser.add_argument("--source-output-name", help="Optional synthesized WAV file name, such as mur001_001.wav.")
+    gptsovits_reinject_parser.add_argument("--target-sample-rate", type=int, default=48000, help="Target OGG sample rate for the game-ready output.")
+    gptsovits_reinject_parser.add_argument("--archive-name", help="Optional patch archive name override, such as patch2.")
+
     args = parser.parse_args(argv)
     service = ProjectService()
 
@@ -194,6 +205,18 @@ def main(argv: list[str] | None = None) -> int:
             args.speaker,
             limit=args.limit,
             prompt_line_id=args.prompt_line_id,
+        )
+        _emit_json(result.model_dump(mode="json", exclude_none=True))
+        return 0
+
+    if args.command == "prepare-gptsovits-reinject":
+        result = service.prepare_gptsovits_reinject(
+            args.project_root,
+            args.batch_dir,
+            target_voice_file=args.target_voice_file,
+            source_output_name=args.source_output_name,
+            target_sample_rate=args.target_sample_rate,
+            archive_name=args.archive_name,
         )
         _emit_json(result.model_dump(mode="json", exclude_none=True))
         return 0

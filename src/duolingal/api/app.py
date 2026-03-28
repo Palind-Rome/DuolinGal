@@ -17,6 +17,7 @@ from duolingal.domain.models import (
     GameAnalysis,
     GptSovitsBatchResult,
     GptSovitsPreparationResult,
+    GptSovitsReinjectResult,
     InitProjectRequest,
     KrkrDumpPreparationResult,
     LinesBuildResult,
@@ -26,6 +27,7 @@ from duolingal.domain.models import (
     PreflightRequest,
     PrepareGptSovitsRequest,
     PrepareGptSovitsBatchRequest,
+    PrepareGptSovitsReinjectRequest,
     PrepareKrkrDumpRequest,
     PreparePatchRequest,
     PreparePocRequest,
@@ -173,6 +175,20 @@ def create_app() -> FastAPI:
                 request.speaker_name,
                 limit=request.limit,
                 prompt_line_id=request.prompt_line_id,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/projects/prepare-gptsovits-reinject", response_model=GptSovitsReinjectResult)
+    def prepare_gptsovits_reinject(request: PrepareGptSovitsReinjectRequest) -> GptSovitsReinjectResult:
+        try:
+            return service.prepare_gptsovits_reinject(
+                request.project_root,
+                request.batch_dir,
+                target_voice_file=request.target_voice_file,
+                source_output_name=request.source_output_name,
+                target_sample_rate=request.target_sample_rate,
+                archive_name=request.archive_name,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

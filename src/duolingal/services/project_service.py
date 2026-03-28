@@ -5,6 +5,7 @@ from pathlib import Path
 from duolingal.core.analyzer import analyze_game_directory
 from duolingal.core.dataset_export import export_tts_dataset
 from duolingal.core.gptsovits_batch import prepare_gptsovits_batch as prepare_gptsovits_batch_inputs
+from duolingal.core.gptsovits_reinject import prepare_gptsovits_reinject as prepare_gptsovits_reinject_output
 from duolingal.core.decompiler import decompile_project_scripts
 from duolingal.core.extractor import extract_project_packages
 from duolingal.core.gptsovits_prep import prepare_gptsovits_inputs
@@ -22,6 +23,7 @@ from duolingal.domain.models import (
     ExtractionResult,
     GameAnalysis,
     GptSovitsPreparationResult,
+    GptSovitsReinjectResult,
     KrkrDumpPreparationResult,
     LinesBuildResult,
     PatchPreparationResult,
@@ -173,4 +175,23 @@ class ProjectService:
             speaker_name,
             limit=limit,
             prompt_line_id=prompt_line_id,
+        )
+
+    def prepare_gptsovits_reinject(
+        self,
+        project_root: str | Path,
+        batch_dir: str | Path,
+        *,
+        target_voice_file: str,
+        source_output_name: str | None = None,
+        target_sample_rate: int = 48000,
+        archive_name: str | None = None,
+    ) -> GptSovitsReinjectResult:
+        return prepare_gptsovits_reinject_output(
+            project_root,
+            batch_dir,
+            target_voice_file=target_voice_file,
+            source_output_name=source_output_name,
+            target_sample_rate=target_sample_rate,
+            archive_name=archive_name,
         )

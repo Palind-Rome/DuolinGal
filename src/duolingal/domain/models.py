@@ -391,3 +391,31 @@ class GptSovitsBatchResult(BaseModel):
     item_count: int
     items: list[GptSovitsBatchItem] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
+
+
+class PrepareGptSovitsReinjectRequest(BaseModel):
+    project_root: str
+    batch_dir: str
+    target_voice_file: str
+    source_output_name: str | None = None
+    target_sample_rate: int = 48000
+    archive_name: str | None = None
+
+
+class GptSovitsReinjectResult(BaseModel):
+    project_root: str
+    batch_dir: str
+    source_output_name: str
+    source_output_path: str
+    target_voice_file: str
+    workspace_dir: str
+    override_root: str
+    game_ready_voice_path: str
+    target_sample_rate: int
+    patch_archive_name: str
+    patch_staging_root: str
+    patch_archive_staging_dir: str
+    patch_manifest_path: str
+    patch_pack_script_path: str
+    notes_path: str
+    notes: list[str] = Field(default_factory=list)

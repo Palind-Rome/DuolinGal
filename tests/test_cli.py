@@ -5,6 +5,7 @@ import json
 import sys
 import unittest
 from contextlib import redirect_stdout
+from unittest.mock import patch
 
 from support import ensure_src_on_path, temporary_workspace, touch
 
@@ -392,6 +393,56 @@ class CliTests(unittest.TestCase):
             payload = json.loads(command_stdout.getvalue())
             self.assertEqual(payload["speaker_count"], 1)
             self.assertTrue((project_root / "tts-dataset" / "yoshino" / "audio" / "yos100_001.ogg").exists())
+
+    def test_prepare_gptsovits_reinject_command_creates_override_and_patch_staging(self) -> None:
+        with temporary_workspace() as temp_dir:
+            game_root = temp_dir / "game"
+            projects_root = temp_dir / "projects"
+
+            for name in ("voice.xp3", "scn.xp3", "patch.xp3", "KAGParserEx.dll", "psbfile.dll", "senrenbanka.exe"):
+                touch(game_root / name)
+
+            analysis = analyze_game_directory(game_root)
+            manifest = initialize_project_workspace(analysis, project_id="senren-reinject-cli", projects_root=projects_root)
+            project_root = projects_root / "senren-reinject-cli"
+            self.assertEqual(str(project_root), manifest.workspace_path)
+
+            batch_dir = project_root / "tts-dataset" / "Murasame" / "gptsovits" / "batches" / "first-01-en"
+            outputs_dir = batch_dir / "outputs"
+            outputs_dir.mkdir(parents=True, exist_ok=True)
+            touch(outputs_dir / "mur001_001.wav")
+
+            with (batch_dir / "requests.csv").open("w", encoding="utf-8", newline="") as handle:
+                handle.write(
+                    "order_index,line_id,voice_file,source_audio_path,jp_text,en_text,output_file_name,output_path\n"
+                    "1,scene001-0001,mur001_001.ogg,C:/audio/mur001_001.ogg,jp-line,Hello there.,mur001_001.wav,C:/outputs/mur001_001.wav\n"
+                )
+
+            def fake_convert(source_output_path, destination_path, *, target_sample_rate):
+                destination_path.parent.mkdir(parents=True, exist_ok=True)
+                destination_path.write_bytes(b"fake-ogg")
+
+            command_stdout = io.StringIO()
+            with patch("duolingal.core.gptsovits_reinject._convert_wav_to_ogg", side_effect=fake_convert):
+                with redirect_stdout(command_stdout):
+                    exit_code = main(
+                        [
+                            "prepare-gptsovits-reinject",
+                            str(project_root),
+                            str(batch_dir),
+                            "--target-voice-file",
+                            "uts001_001.ogg",
+                            "--source-output-name",
+                            "mur001_001.wav",
+                        ]
+                    )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(command_stdout.getvalue())
+            self.assertEqual(payload["target_voice_file"], "uts001_001.ogg")
+            self.assertEqual(payload["patch_archive_name"], "patch2")
+            self.assertTrue((project_root / "poc" / "gptsovits-uts001_001" / "game-ready" / "unencrypted" / "uts001_001.ogg").exists())
+            self.assertTrue((project_root / "patch-build" / "patch2" / "uts001_001.ogg").exists())
 
 
 if __name__ == "__main__":
