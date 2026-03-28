@@ -266,6 +266,13 @@ class PrepareGptSovitsRequest(BaseModel):
     speaker_name: str | None = None
 
 
+class PrepareGptSovitsBatchRequest(BaseModel):
+    project_root: str
+    speaker_name: str
+    limit: int = 10
+    prompt_line_id: str | None = None
+
+
 class RawScriptNode(BaseModel):
     scene_id: str
     order_index: int
@@ -352,4 +359,29 @@ class GptSovitsPreparationResult(BaseModel):
     speaker_count: int
     line_count: int
     speakers: list[GptSovitsSpeakerResult] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class GptSovitsBatchItem(BaseModel):
+    line_id: str
+    voice_file: str
+    source_audio_path: str
+    jp_text: str
+    en_text: str
+    output_file_name: str
+
+
+class GptSovitsBatchResult(BaseModel):
+    project_root: str
+    speaker_name: str
+    batch_dir: str
+    output_dir: str
+    request_list_path: str
+    request_table_path: str
+    invoke_script_path: str
+    prompt_line_id: str
+    prompt_audio_path: str
+    prompt_text: str
+    item_count: int
+    items: list[GptSovitsBatchItem] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)

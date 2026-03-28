@@ -4,6 +4,7 @@ from pathlib import Path
 
 from duolingal.core.analyzer import analyze_game_directory
 from duolingal.core.dataset_export import export_tts_dataset
+from duolingal.core.gptsovits_batch import prepare_gptsovits_batch as prepare_gptsovits_batch_inputs
 from duolingal.core.decompiler import decompile_project_scripts
 from duolingal.core.extractor import extract_project_packages
 from duolingal.core.gptsovits_prep import prepare_gptsovits_inputs
@@ -17,6 +18,7 @@ from duolingal.core.tooling import resolve_tooling_status
 from duolingal.core.workspace import initialize_project_workspace
 from duolingal.domain.models import (
     DatasetExportResult,
+    GptSovitsBatchResult,
     ExtractionResult,
     GameAnalysis,
     GptSovitsPreparationResult,
@@ -156,4 +158,19 @@ class ProjectService:
             project_root,
             dataset_root=dataset_root,
             speaker_name=speaker_name,
+        )
+
+    def prepare_gptsovits_batch(
+        self,
+        project_root: str | Path,
+        speaker_name: str,
+        *,
+        limit: int = 10,
+        prompt_line_id: str | None = None,
+    ) -> GptSovitsBatchResult:
+        return prepare_gptsovits_batch_inputs(
+            project_root,
+            speaker_name,
+            limit=limit,
+            prompt_line_id=prompt_line_id,
         )

@@ -15,6 +15,7 @@ from duolingal.domain.models import (
     ExtractionResult,
     ExtractRequest,
     GameAnalysis,
+    GptSovitsBatchResult,
     GptSovitsPreparationResult,
     InitProjectRequest,
     KrkrDumpPreparationResult,
@@ -24,6 +25,7 @@ from duolingal.domain.models import (
     PreflightReport,
     PreflightRequest,
     PrepareGptSovitsRequest,
+    PrepareGptSovitsBatchRequest,
     PrepareKrkrDumpRequest,
     PreparePatchRequest,
     PreparePocRequest,
@@ -159,6 +161,18 @@ def create_app() -> FastAPI:
                 request.project_root,
                 dataset_root=request.dataset_root,
                 speaker_name=request.speaker_name,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/projects/prepare-gptsovits-batch", response_model=GptSovitsBatchResult)
+    def prepare_gptsovits_batch(request: PrepareGptSovitsBatchRequest) -> GptSovitsBatchResult:
+        try:
+            return service.prepare_gptsovits_batch(
+                request.project_root,
+                request.speaker_name,
+                limit=request.limit,
+                prompt_line_id=request.prompt_line_id,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

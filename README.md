@@ -14,6 +14,7 @@ DuolinGal is a local-first research toolchain for experimenting with English voi
 - Prepare a `patch2.xp3` staging directory from a validated override tree.
 - Export per-speaker TTS training datasets from aligned lines and extracted voice files.
 - Prepare GPT-SoVITS training lists and English preview mappings from exported speaker datasets.
+- Prepare small GPT-SoVITS English synthesis batches for a chosen speaker.
 
 ## Privacy Notes
 
@@ -45,6 +46,7 @@ python -m duolingal prepare-poc "<PROJECT_ROOT>" "<VOICE_DIR>"
 python -m duolingal prepare-patch "<PROJECT_ROOT>" "<OVERRIDE_DIR>"
 python -m duolingal export-dataset "<PROJECT_ROOT>" "<VOICE_DIR>"
 python -m duolingal prepare-gptsovits "<PROJECT_ROOT>"
+python -m duolingal prepare-gptsovits-batch "<PROJECT_ROOT>" --speaker "ムラサメ" --limit 10
 ```
 
 If your environment still uses an offline extractor instead of KrkrDump, `preflight` may recommend `extract` before `decompile-scripts`.
@@ -93,6 +95,7 @@ Available routes:
 - `POST /api/projects/prepare-patch`
 - `POST /api/projects/export-dataset`
 - `POST /api/projects/prepare-gptsovits`
+- `POST /api/projects/prepare-gptsovits-batch`
 
 ## Repository Layout
 
@@ -119,6 +122,7 @@ DuolinGal/
 - [Patch Packaging Guide](docs/patch-packaging.zh-CN.md)
 - [Dataset Export Guide](docs/dataset-export.zh-CN.md)
 - [GPT-SoVITS Preparation Guide](docs/gptsovits-prep.zh-CN.md)
+- [GPT-SoVITS Batch Guide](docs/gptsovits-batch.zh-CN.md)
 
 ## Boundaries
 

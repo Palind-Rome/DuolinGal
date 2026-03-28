@@ -80,6 +80,15 @@ def main(argv: list[str] | None = None) -> int:
     gptsovits_parser.add_argument("--dataset-root", help="Optional existing tts-dataset root override.")
     gptsovits_parser.add_argument("--speaker", help="Optional exact speaker_name filter.")
 
+    gptsovits_batch_parser = subparsers.add_parser(
+        "prepare-gptsovits-batch",
+        help="Prepare a small English synthesis batch for GPT-SoVITS api_v2.",
+    )
+    gptsovits_batch_parser.add_argument("project_root", help="Initialized project workspace.")
+    gptsovits_batch_parser.add_argument("--speaker", required=True, help="Exact speaker_name to prepare.")
+    gptsovits_batch_parser.add_argument("--limit", type=int, default=10, help="How many English lines to stage.")
+    gptsovits_batch_parser.add_argument("--prompt-line-id", help="Optional line_id to force as the reference prompt.")
+
     args = parser.parse_args(argv)
     service = ProjectService()
 
@@ -175,6 +184,16 @@ def main(argv: list[str] | None = None) -> int:
             args.project_root,
             dataset_root=args.dataset_root,
             speaker_name=args.speaker,
+        )
+        _emit_json(result.model_dump(mode="json", exclude_none=True))
+        return 0
+
+    if args.command == "prepare-gptsovits-batch":
+        result = service.prepare_gptsovits_batch(
+            args.project_root,
+            args.speaker,
+            limit=args.limit,
+            prompt_line_id=args.prompt_line_id,
         )
         _emit_json(result.model_dump(mode="json", exclude_none=True))
         return 0
