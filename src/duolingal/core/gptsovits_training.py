@@ -600,6 +600,7 @@ Write-Host 'GPT-SoVITS dataset preparation finished.'
 def _build_train_gpt_launcher(*, gpt_sovits_root: Path, gpt_config_path: Path, gpu: str) -> str:
     return f"""from __future__ import annotations
 
+import math
 import os
 import platform
 import sys
@@ -630,12 +631,65 @@ from AR.utils.io import load_yaml_config
 from process_ckpt import my_save
 
 
-class _EpochPrinter(Callback):
+STEP_LOG_INTERVAL = 50
+
+
+def _metric_to_float(value):
+    if value is None:
+        return None
+    if hasattr(value, "detach"):
+        value = value.detach().cpu()
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+class _ProgressPrinter(Callback):
+    def __init__(self, step_interval: int = STEP_LOG_INTERVAL):
+        self.step_interval = max(step_interval, 1)
+
+    def on_train_start(self, trainer, pl_module):
+        total_batches = trainer.num_training_batches
+        if isinstance(total_batches, float) and not math.isfinite(total_batches):
+            total_batches = "?"
+        print(f"Training started: epochs={{trainer.max_epochs}}, batches_per_epoch={{total_batches}}")
+
     def on_train_epoch_start(self, trainer, pl_module):
         print(f"Epoch {{trainer.current_epoch + 1}}/{{trainer.max_epochs}} started")
 
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        total_batches = trainer.num_training_batches
+        if isinstance(total_batches, float) and not math.isfinite(total_batches):
+            total_batches = None
+        current_batch = batch_idx + 1
+        if total_batches is not None:
+            should_log = current_batch % self.step_interval == 0 or current_batch == int(total_batches)
+        else:
+            should_log = current_batch % self.step_interval == 0
+        if not should_log:
+            return
+
+        metrics = trainer.callback_metrics
+        loss = _metric_to_float(metrics.get("total_loss_step", metrics.get("total_loss")))
+        acc = _metric_to_float(metrics.get("top_3_acc_step", metrics.get("top_3_acc")))
+        lr = _metric_to_float(metrics.get("lr"))
+
+        batch_part = f"{{current_batch}}/{{int(total_batches)}}" if total_batches is not None else str(current_batch)
+        parts = [f"Epoch {{trainer.current_epoch + 1}}", f"batch {{batch_part}}", f"global_step {{trainer.global_step}}"]
+        if loss is not None:
+            parts.append(f"loss {{loss:.4f}}")
+        if acc is not None:
+            parts.append(f"acc {{acc:.4f}}")
+        if lr is not None:
+            parts.append(f"lr {{lr:.6f}}")
+        print(" | ".join(parts))
+
     def on_train_epoch_end(self, trainer, pl_module):
         print(f"Epoch {{trainer.current_epoch + 1}}/{{trainer.max_epochs}} finished")
+
+    def on_train_end(self, trainer, pl_module):
+        print("Training ended.")
 
 
 class _SingleGpuText2SemanticDataModule(Text2SemanticDataModule):
@@ -755,7 +809,7 @@ def main():
         precision=config["train"]["precision"],
         logger=logger,
         num_sanity_val_steps=0,
-        callbacks=[ckpt_callback, _EpochPrinter()],
+        callbacks=[ckpt_callback, _ProgressPrinter()],
         use_distributed_sampler=False,
         limit_val_batches=0,
         enable_progress_bar=False,

@@ -109,6 +109,9 @@ class GptSovitsTrainingPreparationTests(unittest.TestCase):
             self.assertIn('strategy="auto"', train_gpt_launcher_text)
             self.assertIn("enable_progress_bar=False", train_gpt_launcher_text)
             self.assertIn("num_replicas=1, rank=0", train_gpt_launcher_text)
+            self.assertIn("STEP_LOG_INTERVAL = 50", train_gpt_launcher_text)
+            self.assertIn('print(f"Epoch {trainer.current_epoch + 1}/{trainer.max_epochs} started")', train_gpt_launcher_text)
+            self.assertIn('print(" | ".join(parts))', train_gpt_launcher_text)
 
             gpt_config_text = Path(result.gpt_config_path).read_text(encoding="utf-8")
             self.assertIn("pretrained_s1", gpt_config_text)
