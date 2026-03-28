@@ -71,7 +71,7 @@ python -m unittest discover -s tests
 - `FFmpeg`
   Planned for audio preprocessing.
 - `GPT-SoVITS`
-  Supported for training list preparation; actual model installation and training remain external.
+  Supported for training list preparation and speaker-specific training workspace generation; actual model installation remains external, and generated GPT training workspaces use a Windows-safe single-GPU launcher.
 
 ## Local API
 
