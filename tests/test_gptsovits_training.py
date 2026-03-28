@@ -89,6 +89,7 @@ class GptSovitsTrainingPreparationTests(unittest.TestCase):
             prepare_stage1_script_text = Path(result.prepare_stage1_script_path).read_text(encoding="utf-8")
             self.assertIn("CONDA_PREFIX", prepare_stage1_script_text)
             self.assertIn("python.exe", prepare_stage1_script_text)
+            self.assertIn("PYTHONPATH", prepare_stage1_script_text)
 
             gpt_config_text = Path(result.gpt_config_path).read_text(encoding="utf-8")
             self.assertIn("pretrained_s1", gpt_config_text)

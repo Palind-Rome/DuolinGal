@@ -452,6 +452,7 @@ def _build_sovits_config(
 def _build_prepare_stage1_script(common_paths: _CommonPaths, *, version: str) -> str:
     return f"""$ErrorActionPreference = 'Stop'
 $env:PYTHONNOUSERSITE = '1'
+$env:PYTHONPATH = '{common_paths.gpt_sovits_root};{common_paths.gpt_sovits_root / "GPT_SoVITS"}'
 $env:inp_text = '{common_paths.input_list_path}'
 $env:inp_wav_dir = '{common_paths.source_audio_root}'
 $env:exp_name = '{common_paths.exp_dir.name}'
@@ -487,6 +488,7 @@ Write-Host "Prepared $merged"
 def _build_prepare_stage2_script(common_paths: _CommonPaths) -> str:
     return f"""$ErrorActionPreference = 'Stop'
 $env:PYTHONNOUSERSITE = '1'
+$env:PYTHONPATH = '{common_paths.gpt_sovits_root};{common_paths.gpt_sovits_root / "GPT_SoVITS"}'
 $env:inp_text = '{common_paths.input_list_path}'
 $env:inp_wav_dir = '{common_paths.source_audio_root}'
 $env:exp_name = '{common_paths.exp_dir.name}'
@@ -515,6 +517,7 @@ Write-Host "Prepared 4-cnhubert and 5-wav32k under {common_paths.exp_dir}"
 def _build_prepare_stage3_script(common_paths: _CommonPaths, *, sovits_config_path: Path) -> str:
     return f"""$ErrorActionPreference = 'Stop'
 $env:PYTHONNOUSERSITE = '1'
+$env:PYTHONPATH = '{common_paths.gpt_sovits_root};{common_paths.gpt_sovits_root / "GPT_SoVITS"}'
 $env:inp_text = '{common_paths.input_list_path}'
 $env:exp_name = '{common_paths.exp_dir.name}'
 $env:opt_dir = '{common_paths.exp_dir}'
@@ -561,6 +564,7 @@ Write-Host 'GPT-SoVITS dataset preparation finished.'
 def _build_train_gpt_script(*, gpt_sovits_root: Path, gpt_config_path: Path, gpu: str) -> str:
     return f"""$ErrorActionPreference = 'Stop'
 $env:PYTHONNOUSERSITE = '1'
+$env:PYTHONPATH = '{gpt_sovits_root};{gpt_sovits_root / "GPT_SoVITS"}'
 $env:_CUDA_VISIBLE_DEVICES = '{gpu}'
 $env:hz = '25hz'
 
@@ -580,6 +584,7 @@ Set-Location '{gpt_sovits_root}'
 def _build_train_sovits_script(*, gpt_sovits_root: Path, sovits_config_path: Path, gpu: str) -> str:
     return f"""$ErrorActionPreference = 'Stop'
 $env:PYTHONNOUSERSITE = '1'
+$env:PYTHONPATH = '{gpt_sovits_root};{gpt_sovits_root / "GPT_SoVITS"}'
 $env:_CUDA_VISIBLE_DEVICES = '{gpu}'
 
 $pythonExe = if ($env:CONDA_PREFIX -and (Test-Path (Join-Path $env:CONDA_PREFIX 'python.exe'))) {{
