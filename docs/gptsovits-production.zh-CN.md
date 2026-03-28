@@ -81,6 +81,7 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
 运行队列后，还会继续生成：
 
 - `tts-production/<PLAN_NAME>/production-state.json`
+- `tts-production/<PLAN_NAME>/production-status.txt`
 
 ## 队列实际做了什么
 
@@ -111,6 +112,17 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
 
 - 已完成的角色会跳过
 - 未完成的角色会继续跑
+
+同时还会维护一份更适合早上快速查看的人类可读摘要：
+
+- `production-status.txt`
+
+里面会写：
+
+- 当前总进度
+- 当前角色
+- 当前阶段
+- 最近完成的几个角色
 
 也就是说，它不是“一次性脚本”，而是一条可以分多晚推进的可恢复队列。
 
@@ -145,6 +157,7 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
 4. 先准备好计划，再运行 `scripts/run-production.ps1`
 5. 第二天优先看：
    - `production-state.json`
+   - `production-status.txt`
    - `logs/`
    - `game-ready/unencrypted/`
 
