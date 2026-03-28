@@ -34,6 +34,9 @@ class PatchPreparationTests(unittest.TestCase):
             self.assertTrue((projects_root / "senren-patch" / "patch-build" / "patch2" / "uts001_001.ogg").exists())
             manifest_payload = json.loads((projects_root / "senren-patch" / "patch-build" / "patch2.manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest_payload["copied_files"], ["uts001_001.ogg"])
+            script_text = (projects_root / "senren-patch" / "patch-build" / "pack-patch2.ps1").read_text(encoding="utf-8")
+            self.assertIn("$PSScriptRoot", script_text)
+            self.assertIn("Xp3Pack.exe", script_text)
 
     def test_prepare_patch_staging_preserves_subdirectories(self) -> None:
         with temporary_workspace() as temp_dir:

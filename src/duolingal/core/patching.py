@@ -51,7 +51,7 @@ def prepare_patch_staging(
         "copied_files": copied_files,
         "notes": [
             "Copy the archive staging directory into your local game experiment folder before running Xp3Pack.",
-            "The generated script assumes Xp3Pack.exe is available in the current directory or PATH.",
+            "The generated script looks for Xp3Pack.exe next to itself first, then relies on that local path.",
         ],
     }
     manifest_path.write_text(json.dumps(manifest_payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -90,12 +90,14 @@ def _build_pack_script(archive_name: str) -> str:
         [
             "$ErrorActionPreference = 'Stop'",
             f"$archiveName = '{archive_name}'",
-            "if (-not (Test-Path \".\\$archiveName\")) {",
-            "  throw \"Archive staging directory not found: $archiveName\"",
+            "$tool = Join-Path $PSScriptRoot 'Xp3Pack.exe'",
+            "$stagingDir = Join-Path $PSScriptRoot $archiveName",
+            "if (-not (Test-Path $stagingDir -PathType Container)) {",
+            "  throw \"Archive staging directory not found: $stagingDir\"",
             "}",
-            "if (-not (Get-Command Xp3Pack.exe -ErrorAction SilentlyContinue)) {",
-            "  throw 'Xp3Pack.exe was not found in PATH or the current directory.'",
+            "if (-not (Test-Path $tool -PathType Leaf)) {",
+            "  throw \"Xp3Pack.exe was not found: $tool\"",
             "}",
-            "Xp3Pack.exe $archiveName",
+            "& $tool $archiveName",
         ]
     )
