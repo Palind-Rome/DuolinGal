@@ -131,6 +131,30 @@ def main(argv: list[str] | None = None) -> int:
     gptsovits_train_parser.add_argument("--gpt-batch-size", type=int, default=4, help="GPT stage batch size for the generated config.")
     gptsovits_train_parser.add_argument("--sovits-batch-size", type=int, default=4, help="SoVITS stage batch size for the generated config.")
 
+    gptsovits_production_parser = subparsers.add_parser(
+        "prepare-gptsovits-production",
+        help="Prepare a resumable GPT-SoVITS training and inference queue for multiple speakers.",
+    )
+    gptsovits_production_parser.add_argument("project_root", help="Initialized project workspace.")
+    gptsovits_production_parser.add_argument("--speaker", dest="speakers", action="append", help="Optional exact speaker_name filter. Repeat to enqueue more than one role.")
+    gptsovits_production_parser.add_argument("--min-lines", type=int, default=1, help="Minimum aligned line count required to keep a speaker in the queue.")
+    gptsovits_production_parser.add_argument("--gpt-sovits-root", help="Optional local GPT-SoVITS repository root override.")
+    gptsovits_production_parser.add_argument("--reference-mode", choices=["anchor", "per-line", "auto"], default="auto", help="How GPT-SoVITS reference audio/text should be chosen during overnight inference.")
+    gptsovits_production_parser.add_argument("--inference-limit", type=int, help="Optional per-speaker cap for how many English preview lines to synthesize.")
+    gptsovits_production_parser.add_argument("--target-sample-rate", type=int, default=48000, help="Target OGG sample rate for the combined game-ready outputs.")
+    gptsovits_production_parser.add_argument("--api-port", type=int, default=9880, help="Local GPT-SoVITS api_v2 port.")
+    gptsovits_production_parser.add_argument("--sync-game-root", action="store_true", help="Copy completed OGG overrides into the real game root's unencrypted directory at the end of the queue.")
+    gptsovits_production_parser.add_argument("--gpt-epochs", type=int, default=12, help="GPT stage epoch count for each generated training workspace.")
+    gptsovits_production_parser.add_argument("--sovits-epochs", type=int, default=6, help="SoVITS stage epoch count for each generated training workspace.")
+    gptsovits_production_parser.add_argument("--gpt-batch-size", type=int, default=4, help="GPT stage batch size for each generated training workspace.")
+    gptsovits_production_parser.add_argument("--sovits-batch-size", type=int, default=4, help="SoVITS stage batch size for each generated training workspace.")
+
+    gptsovits_production_run_parser = subparsers.add_parser(
+        "run-gptsovits-production",
+        help="Run a previously prepared GPT-SoVITS production queue.",
+    )
+    gptsovits_production_run_parser.add_argument("production_root", help="Prepared tts-production/<plan> directory.")
+
     args = parser.parse_args(argv)
     service = ProjectService()
 
@@ -277,6 +301,30 @@ def main(argv: list[str] | None = None) -> int:
             gpt_batch_size=args.gpt_batch_size,
             sovits_batch_size=args.sovits_batch_size,
         )
+        _emit_json(result.model_dump(mode="json", exclude_none=True))
+        return 0
+
+    if args.command == "prepare-gptsovits-production":
+        result = service.prepare_gptsovits_production(
+            args.project_root,
+            speakers=args.speakers,
+            min_lines=args.min_lines,
+            gpt_sovits_root=args.gpt_sovits_root,
+            reference_mode=args.reference_mode,
+            inference_limit=args.inference_limit,
+            target_sample_rate=args.target_sample_rate,
+            api_port=args.api_port,
+            sync_game_root=args.sync_game_root,
+            gpt_epochs=args.gpt_epochs,
+            sovits_epochs=args.sovits_epochs,
+            gpt_batch_size=args.gpt_batch_size,
+            sovits_batch_size=args.sovits_batch_size,
+        )
+        _emit_json(result.model_dump(mode="json", exclude_none=True))
+        return 0
+
+    if args.command == "run-gptsovits-production":
+        result = service.run_gptsovits_production(args.production_root)
         _emit_json(result.model_dump(mode="json", exclude_none=True))
         return 0
 

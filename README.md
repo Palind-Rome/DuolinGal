@@ -16,6 +16,7 @@ DuolinGal is a local-first research toolchain for experimenting with English voi
 - Prepare GPT-SoVITS training lists and English preview mappings from exported speaker datasets.
 - Prepare small GPT-SoVITS English synthesis batches for a chosen speaker.
 - Prepare a speaker-specific GPT-SoVITS training workspace that calls the official dataset and training scripts.
+- Prepare and run a resumable multi-speaker GPT-SoVITS production queue for overnight training, inference, and reinjection staging.
 
 ## Privacy Notes
 
@@ -51,6 +52,8 @@ python -m duolingal prepare-gptsovits-batch "<PROJECT_ROOT>" --speaker "<SPEAKER
 python -m duolingal prepare-gptsovits-reinject "<PROJECT_ROOT>" "<BATCH_DIR>" --target-voice-file "<TARGET_VOICE_FILE>" --source-output-name "<OUTPUT_WAV_NAME>"
 python -m duolingal prepare-gptsovits-reinject-batch "<PROJECT_ROOT>" "<BATCH_DIR>" --limit 50
 python -m duolingal prepare-gptsovits-train "<PROJECT_ROOT>" --speaker "<SPEAKER_NAME>"
+python -m duolingal prepare-gptsovits-production "<PROJECT_ROOT>" --sync-game-root
+python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\\tts-production\\all-cast-v1"
 ```
 
 If your environment still uses an offline extractor instead of KrkrDump, `preflight` may recommend `extract` before `decompile-scripts`.
@@ -72,7 +75,7 @@ python -m unittest discover -s tests
 - `FFmpeg`
   Planned for audio preprocessing.
 - `GPT-SoVITS`
-  Supported for training list preparation and speaker-specific training workspace generation; actual model installation remains external, and generated GPT / SoVITS training workspaces use Windows-safe single-GPU launchers.
+  Supported for training list preparation, speaker-specific training workspace generation, and resumable multi-speaker production queues; actual model installation remains external, and generated GPT / SoVITS training workspaces use Windows-safe single-GPU launchers.
 
 ## Local API
 
@@ -103,6 +106,8 @@ Available routes:
 - `POST /api/projects/prepare-gptsovits-reinject`
 - `POST /api/projects/prepare-gptsovits-reinject-batch`
 - `POST /api/projects/prepare-gptsovits-train`
+- `POST /api/projects/prepare-gptsovits-production`
+- `POST /api/projects/run-gptsovits-production`
 
 ## Repository Layout
 
@@ -134,6 +139,7 @@ DuolinGal/
 - [GPT-SoVITS Reinject Guide](docs/gptsovits-reinject.zh-CN.md)
 - [GPT-SoVITS Training Guide](docs/gptsovits-training.zh-CN.md)
 - [GPT-SoVITS Local Runbook](docs/gptsovits-local-runbook.zh-CN.md)
+- [GPT-SoVITS Production Guide](docs/gptsovits-production.zh-CN.md)
 
 ## Boundaries
 

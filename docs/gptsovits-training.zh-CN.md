@@ -210,6 +210,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\run-train-sovits.ps1
 - 前处理脚本生成
 - GPT / SoVITS 启动脚本生成
 - Windows 单卡下的 GPT 第一阶段稳定启动
+- 基于这些单角色工作区继续生成可恢复的多角色量产队列
 
 它不负责：
 
@@ -241,3 +242,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\run-train-sovits.ps1
 - 生成语音的响度、语气稳定性、角色一致性，还没有完全自动化的 QA 规则
 - 英文推理里的专有名词、角色名、日语罗马字词汇，目前还没有单独的发音词典或文本预处理规则；例如 `Murasame` 这类词，后续值得加入自定义 pronunciation / G2P 映射，避免模型按默认英语自然拼读去念
 - Web GUI 还没有落地，当前仍然偏向本地脚本工作流
+
+如果接下来要把这套流程继续扩成“多角色夜间顺序训练 + 推理”，请继续看：
+
+- [GPT-SoVITS Production Guide](gptsovits-production.zh-CN.md)

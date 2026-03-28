@@ -17,6 +17,8 @@ from duolingal.domain.models import (
     GameAnalysis,
     GptSovitsBatchResult,
     GptSovitsPreparationResult,
+    GptSovitsProductionPreparationResult,
+    GptSovitsProductionRunResult,
     GptSovitsReinjectBatchResult,
     GptSovitsReinjectResult,
     GptSovitsTrainingPreparationResult,
@@ -29,6 +31,7 @@ from duolingal.domain.models import (
     PreflightRequest,
     PrepareGptSovitsRequest,
     PrepareGptSovitsBatchRequest,
+    PrepareGptSovitsProductionRequest,
     PrepareGptSovitsReinjectBatchRequest,
     PrepareGptSovitsReinjectRequest,
     PrepareGptSovitsTrainingRequest,
@@ -36,6 +39,7 @@ from duolingal.domain.models import (
     PreparePatchRequest,
     PreparePocRequest,
     ProjectManifest,
+    RunGptSovitsProductionRequest,
     ScriptDecompileResult,
     ToolRequirement,
 )
@@ -228,6 +232,36 @@ def create_app() -> FastAPI:
                 gpt_batch_size=request.gpt_batch_size,
                 sovits_batch_size=request.sovits_batch_size,
             )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/projects/prepare-gptsovits-production", response_model=GptSovitsProductionPreparationResult)
+    def prepare_gptsovits_production(
+        request: PrepareGptSovitsProductionRequest,
+    ) -> GptSovitsProductionPreparationResult:
+        try:
+            return service.prepare_gptsovits_production(
+                request.project_root,
+                speakers=request.speakers,
+                min_lines=request.min_lines,
+                gpt_sovits_root=request.gpt_sovits_root,
+                reference_mode=request.reference_mode,
+                inference_limit=request.inference_limit,
+                target_sample_rate=request.target_sample_rate,
+                api_port=request.api_port,
+                sync_game_root=request.sync_game_root,
+                gpt_epochs=request.gpt_epochs,
+                sovits_epochs=request.sovits_epochs,
+                gpt_batch_size=request.gpt_batch_size,
+                sovits_batch_size=request.sovits_batch_size,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/projects/run-gptsovits-production", response_model=GptSovitsProductionRunResult)
+    def run_gptsovits_production(request: RunGptSovitsProductionRequest) -> GptSovitsProductionRunResult:
+        try:
+            return service.run_gptsovits_production(request.production_root)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 

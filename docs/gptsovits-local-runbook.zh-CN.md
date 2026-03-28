@@ -2,7 +2,7 @@
 
 这份文档记录的是 DuolinGal 在本地机器上，围绕《千恋万花》全年龄语音数据完成一次 **GPT-SoVITS 英文试合成** 的最小复现流程。
 
-目标不是训练整作模型，而是先稳定跑通：
+最初目标不是训练整作模型，而是先稳定跑通：
 
 1. `DuolinGal` 生成角色批次
 2. `GPT-SoVITS api_v2.py` 启动
@@ -191,19 +191,38 @@ Get-Content $requestList -Encoding UTF8 | ForEach-Object { ... }
 
 - 已经得到稳定的丛雨音色
 
+## 这条路线后来验证到了哪里
+
+在这份最小复现成功之后，当前仓库已经继续验证到了：
+
+- 丛雨角色专属训练成功启动并跑通
+- 当前第一轮主观满意停点：
+  - GPT：`e12`
+  - SoVITS：`e6`
+- 用这组权重重新推理后：
+  - 丛雨前 50 句英文已经成功生成
+  - 且已经成功放进游戏里试听
+
+也就是说，当前本地流程已经不只是“10 句试合成成功”，而是已经走到了：
+
+- 角色训练
+- 批量推理
+- 批量回灌游戏
+
+这也是为什么当前仓库新增了：
+
+- `prepare-gptsovits-reinject-batch`
+- `prepare-gptsovits-production`
+- `run-gptsovits-production`
+
 ## 下一步建议
 
-如果继续进入角色专属训练，这轮丛雨本地验证目前记录到的第一个满意停点是：
+如果继续扩大到多角色量产，当前更推荐的顺序已经变成：
 
-- GPT：`e12`
-- SoVITS：`e6`
-
-也就是说，当前更推荐把 SoVITS 当作“先训到 5~6 轮就试听”的阶段，而不是默认一路跑到更高 epoch。
-
-1. 先抽查前 10 句英文输出，挑 1 到 2 句最像样的样本
-2. 把它们转成游戏可替换的 `.ogg`
-3. 走我们已经验证过的：
-   - `version.dll + unencrypted`
-   - 或 `patch2.xp3`
-4. 做第一轮“GPT-SoVITS 生成音频回灌游戏”验证
-5. 只有这一步确认有效后，再决定是否做角色训练/微调
+1. 用 `prepare-gptsovits-production` 生成夜间量产计划
+2. 用 `run-gptsovits-production` 顺序跑多个角色
+3. 第二天检查：
+   - `production-state.json`
+   - `game-ready/unencrypted/`
+   - `patch-build/`
+4. 再决定是继续加角色，还是回头细修发音和 epoch

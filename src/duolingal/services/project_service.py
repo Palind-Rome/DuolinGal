@@ -5,6 +5,10 @@ from pathlib import Path
 from duolingal.core.analyzer import analyze_game_directory
 from duolingal.core.dataset_export import export_tts_dataset
 from duolingal.core.gptsovits_batch import prepare_gptsovits_batch as prepare_gptsovits_batch_inputs
+from duolingal.core.gptsovits_production import (
+    prepare_gptsovits_production as prepare_gptsovits_production_queue,
+    run_gptsovits_production as run_gptsovits_production_queue,
+)
 from duolingal.core.gptsovits_reinject import (
     prepare_gptsovits_reinject as prepare_gptsovits_reinject_output,
     prepare_gptsovits_reinject_batch as prepare_gptsovits_reinject_batch_output,
@@ -27,6 +31,8 @@ from duolingal.domain.models import (
     ExtractionResult,
     GameAnalysis,
     GptSovitsPreparationResult,
+    GptSovitsProductionPreparationResult,
+    GptSovitsProductionRunResult,
     GptSovitsReinjectBatchResult,
     GptSovitsReinjectResult,
     GptSovitsTrainingPreparationResult,
@@ -247,3 +253,39 @@ class ProjectService:
             gpt_batch_size=gpt_batch_size,
             sovits_batch_size=sovits_batch_size,
         )
+
+    def prepare_gptsovits_production(
+        self,
+        project_root: str | Path,
+        *,
+        speakers: list[str] | None = None,
+        min_lines: int = 1,
+        gpt_sovits_root: str | Path | None = None,
+        reference_mode: str = "auto",
+        inference_limit: int | None = None,
+        target_sample_rate: int = 48000,
+        api_port: int = 9880,
+        sync_game_root: bool = False,
+        gpt_epochs: int = 12,
+        sovits_epochs: int = 6,
+        gpt_batch_size: int = 4,
+        sovits_batch_size: int = 4,
+    ) -> GptSovitsProductionPreparationResult:
+        return prepare_gptsovits_production_queue(
+            project_root,
+            speakers=speakers,
+            min_lines=min_lines,
+            gpt_sovits_root=gpt_sovits_root,
+            reference_mode=reference_mode,
+            inference_limit=inference_limit,
+            target_sample_rate=target_sample_rate,
+            api_port=api_port,
+            sync_game_root=sync_game_root,
+            gpt_epochs=gpt_epochs,
+            sovits_epochs=sovits_epochs,
+            gpt_batch_size=gpt_batch_size,
+            sovits_batch_size=sovits_batch_size,
+        )
+
+    def run_gptsovits_production(self, production_root: str | Path) -> GptSovitsProductionRunResult:
+        return run_gptsovits_production_queue(production_root)

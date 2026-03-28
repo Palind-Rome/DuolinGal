@@ -293,6 +293,26 @@ class PrepareGptSovitsTrainingRequest(BaseModel):
     sovits_batch_size: int = 4
 
 
+class PrepareGptSovitsProductionRequest(BaseModel):
+    project_root: str
+    speakers: list[str] = Field(default_factory=list)
+    min_lines: int = 1
+    gpt_sovits_root: str | None = None
+    reference_mode: Literal["anchor", "per-line", "auto"] = "auto"
+    inference_limit: int | None = None
+    target_sample_rate: int = 48000
+    api_port: int = 9880
+    sync_game_root: bool = False
+    gpt_epochs: int = 12
+    sovits_epochs: int = 6
+    gpt_batch_size: int = 4
+    sovits_batch_size: int = 4
+
+
+class RunGptSovitsProductionRequest(BaseModel):
+    production_root: str
+
+
 class RawScriptNode(BaseModel):
     scene_id: str
     order_index: int
@@ -433,6 +453,57 @@ class GptSovitsTrainingPreparationResult(BaseModel):
     train_all_script_path: str
     readme_path: str
     line_count: int
+    notes: list[str] = Field(default_factory=list)
+
+
+class GptSovitsProductionSpeakerPlan(BaseModel):
+    speaker_name: str
+    line_count: int
+    preview_count: int
+    batch_limit: int
+    experiment_name: str
+    training_root: str
+    prepare_all_script_path: str
+    train_gpt_script_path: str
+    train_sovits_script_path: str
+    gpt_weights_dir: str
+    sovits_weights_dir: str
+
+
+class GptSovitsProductionPreparationResult(BaseModel):
+    project_root: str
+    production_root: str
+    queue_path: str
+    run_script_path: str
+    readme_path: str
+    combined_override_root: str
+    api_port: int
+    sync_game_root: bool
+    speaker_count: int
+    speakers: list[GptSovitsProductionSpeakerPlan] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class GptSovitsProductionRunSpeakerStatus(BaseModel):
+    speaker_name: str
+    experiment_name: str
+    batch_dir: str
+    generated_count: int
+    converted_count: int
+    gpt_weight_path: str
+    sovits_weight_path: str
+
+
+class GptSovitsProductionRunResult(BaseModel):
+    production_root: str
+    combined_override_root: str
+    patch_archive_name: str
+    patch_archive_staging_dir: str
+    patch_manifest_path: str
+    state_path: str
+    speaker_count: int
+    completed_speakers: list[GptSovitsProductionRunSpeakerStatus] = Field(default_factory=list)
+    synced_game_root: str | None = None
     notes: list[str] = Field(default_factory=list)
 
 
