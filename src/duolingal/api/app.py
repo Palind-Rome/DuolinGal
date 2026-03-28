@@ -18,6 +18,7 @@ from duolingal.domain.models import (
     GptSovitsBatchResult,
     GptSovitsPreparationResult,
     GptSovitsReinjectResult,
+    GptSovitsTrainingPreparationResult,
     InitProjectRequest,
     KrkrDumpPreparationResult,
     LinesBuildResult,
@@ -28,6 +29,7 @@ from duolingal.domain.models import (
     PrepareGptSovitsRequest,
     PrepareGptSovitsBatchRequest,
     PrepareGptSovitsReinjectRequest,
+    PrepareGptSovitsTrainingRequest,
     PrepareKrkrDumpRequest,
     PreparePatchRequest,
     PreparePocRequest,
@@ -189,6 +191,24 @@ def create_app() -> FastAPI:
                 source_output_name=request.source_output_name,
                 target_sample_rate=request.target_sample_rate,
                 archive_name=request.archive_name,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/projects/prepare-gptsovits-train", response_model=GptSovitsTrainingPreparationResult)
+    def prepare_gptsovits_train(request: PrepareGptSovitsTrainingRequest) -> GptSovitsTrainingPreparationResult:
+        try:
+            return service.prepare_gptsovits_training(
+                request.project_root,
+                request.speaker_name,
+                gpt_sovits_root=request.gpt_sovits_root,
+                version=request.version,
+                gpu=request.gpu,
+                is_half=request.is_half,
+                gpt_epochs=request.gpt_epochs,
+                sovits_epochs=request.sovits_epochs,
+                gpt_batch_size=request.gpt_batch_size,
+                sovits_batch_size=request.sovits_batch_size,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

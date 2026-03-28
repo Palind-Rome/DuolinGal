@@ -279,6 +279,19 @@ class PrepareGptSovitsBatchRequest(BaseModel):
     prompt_line_id: str | None = None
 
 
+class PrepareGptSovitsTrainingRequest(BaseModel):
+    project_root: str
+    speaker_name: str
+    gpt_sovits_root: str | None = None
+    version: Literal["v2"] = "v2"
+    gpu: str = "0"
+    is_half: bool = True
+    gpt_epochs: int = 12
+    sovits_epochs: int = 20
+    gpt_batch_size: int = 4
+    sovits_batch_size: int = 4
+
+
 class RawScriptNode(BaseModel):
     scene_id: str
     order_index: int
@@ -390,6 +403,30 @@ class GptSovitsBatchResult(BaseModel):
     prompt_text: str
     item_count: int
     items: list[GptSovitsBatchItem] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class GptSovitsTrainingPreparationResult(BaseModel):
+    project_root: str
+    speaker_name: str
+    speaker_alias: str
+    experiment_name: str
+    gpt_sovits_root: str
+    training_root: str
+    source_audio_root: str
+    input_list_path: str
+    exp_dir: str
+    gpt_config_path: str
+    sovits_config_path: str
+    prepare_stage1_script_path: str
+    prepare_stage2_script_path: str
+    prepare_stage3_script_path: str
+    prepare_all_script_path: str
+    train_gpt_script_path: str
+    train_sovits_script_path: str
+    train_all_script_path: str
+    readme_path: str
+    line_count: int
     notes: list[str] = Field(default_factory=list)
 
 

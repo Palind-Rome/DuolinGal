@@ -100,6 +100,21 @@ def main(argv: list[str] | None = None) -> int:
     gptsovits_reinject_parser.add_argument("--target-sample-rate", type=int, default=48000, help="Target OGG sample rate for the game-ready output.")
     gptsovits_reinject_parser.add_argument("--archive-name", help="Optional patch archive name override, such as patch2.")
 
+    gptsovits_train_parser = subparsers.add_parser(
+        "prepare-gptsovits-train",
+        help="Prepare an official GPT-SoVITS training workspace for one speaker.",
+    )
+    gptsovits_train_parser.add_argument("project_root", help="Initialized project workspace.")
+    gptsovits_train_parser.add_argument("--speaker", required=True, help="Exact speaker_name to prepare.")
+    gptsovits_train_parser.add_argument("--gpt-sovits-root", help="Optional local GPT-SoVITS repository root override.")
+    gptsovits_train_parser.add_argument("--version", choices=["v2"], default="v2", help="Official GPT-SoVITS model family to target.")
+    gptsovits_train_parser.add_argument("--gpu", default="0", help="GPU index string, such as 0.")
+    gptsovits_train_parser.add_argument("--full-precision", action="store_true", help="Disable half precision in generated training scripts.")
+    gptsovits_train_parser.add_argument("--gpt-epochs", type=int, default=12, help="GPT stage epoch count for the generated config.")
+    gptsovits_train_parser.add_argument("--sovits-epochs", type=int, default=20, help="SoVITS stage epoch count for the generated config.")
+    gptsovits_train_parser.add_argument("--gpt-batch-size", type=int, default=4, help="GPT stage batch size for the generated config.")
+    gptsovits_train_parser.add_argument("--sovits-batch-size", type=int, default=4, help="SoVITS stage batch size for the generated config.")
+
     args = parser.parse_args(argv)
     service = ProjectService()
 
@@ -217,6 +232,22 @@ def main(argv: list[str] | None = None) -> int:
             source_output_name=args.source_output_name,
             target_sample_rate=args.target_sample_rate,
             archive_name=args.archive_name,
+        )
+        _emit_json(result.model_dump(mode="json", exclude_none=True))
+        return 0
+
+    if args.command == "prepare-gptsovits-train":
+        result = service.prepare_gptsovits_training(
+            args.project_root,
+            args.speaker,
+            gpt_sovits_root=args.gpt_sovits_root,
+            version=args.version,
+            gpu=args.gpu,
+            is_half=not args.full_precision,
+            gpt_epochs=args.gpt_epochs,
+            sovits_epochs=args.sovits_epochs,
+            gpt_batch_size=args.gpt_batch_size,
+            sovits_batch_size=args.sovits_batch_size,
         )
         _emit_json(result.model_dump(mode="json", exclude_none=True))
         return 0

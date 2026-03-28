@@ -6,6 +6,7 @@ from duolingal.core.analyzer import analyze_game_directory
 from duolingal.core.dataset_export import export_tts_dataset
 from duolingal.core.gptsovits_batch import prepare_gptsovits_batch as prepare_gptsovits_batch_inputs
 from duolingal.core.gptsovits_reinject import prepare_gptsovits_reinject as prepare_gptsovits_reinject_output
+from duolingal.core.gptsovits_training import prepare_gptsovits_training as prepare_gptsovits_training_workspace
 from duolingal.core.decompiler import decompile_project_scripts
 from duolingal.core.extractor import extract_project_packages
 from duolingal.core.gptsovits_prep import prepare_gptsovits_inputs
@@ -24,6 +25,7 @@ from duolingal.domain.models import (
     GameAnalysis,
     GptSovitsPreparationResult,
     GptSovitsReinjectResult,
+    GptSovitsTrainingPreparationResult,
     KrkrDumpPreparationResult,
     LinesBuildResult,
     PatchPreparationResult,
@@ -194,4 +196,31 @@ class ProjectService:
             source_output_name=source_output_name,
             target_sample_rate=target_sample_rate,
             archive_name=archive_name,
+        )
+
+    def prepare_gptsovits_training(
+        self,
+        project_root: str | Path,
+        speaker_name: str,
+        *,
+        gpt_sovits_root: str | Path | None = None,
+        version: str = "v2",
+        gpu: str = "0",
+        is_half: bool = True,
+        gpt_epochs: int = 12,
+        sovits_epochs: int = 20,
+        gpt_batch_size: int = 4,
+        sovits_batch_size: int = 4,
+    ) -> GptSovitsTrainingPreparationResult:
+        return prepare_gptsovits_training_workspace(
+            project_root,
+            speaker_name,
+            gpt_sovits_root=gpt_sovits_root,
+            version=version,
+            gpu=gpu,
+            is_half=is_half,
+            gpt_epochs=gpt_epochs,
+            sovits_epochs=sovits_epochs,
+            gpt_batch_size=gpt_batch_size,
+            sovits_batch_size=sovits_batch_size,
         )
