@@ -113,6 +113,18 @@ class GptSovitsTrainingPreparationTests(unittest.TestCase):
             self.assertIn('print(f"Epoch {trainer.current_epoch + 1}/{trainer.max_epochs} started")', train_gpt_launcher_text)
             self.assertIn('print(" | ".join(parts))', train_gpt_launcher_text)
 
+            train_sovits_script_text = Path(result.train_sovits_script_path).read_text(encoding="utf-8")
+            self.assertIn("train-sovits-launcher.py", train_sovits_script_text)
+
+            train_sovits_launcher_path = Path(result.train_sovits_script_path).with_name("train-sovits-launcher.py")
+            self.assertTrue(train_sovits_launcher_path.exists())
+            train_sovits_launcher_text = train_sovits_launcher_path.read_text(encoding="utf-8")
+            self.assertIn("num_replicas=1", train_sovits_launcher_text)
+            self.assertIn("num_workers = 0 if platform.system() == \"Windows\" else 5", train_sovits_launcher_text)
+            self.assertIn('print(f"Training started: epochs={hps.train.epochs}, batches_per_epoch={len(train_loader)}")', train_sovits_launcher_text)
+            self.assertIn('print("SoVITS training finished.")', train_sovits_launcher_text)
+            self.assertNotIn("mp.spawn", train_sovits_launcher_text)
+
             gpt_config_text = Path(result.gpt_config_path).read_text(encoding="utf-8")
             self.assertIn("pretrained_s1", gpt_config_text)
             self.assertIn("mur-v2", gpt_config_text)

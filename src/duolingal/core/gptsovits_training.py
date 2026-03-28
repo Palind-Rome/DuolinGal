@@ -102,6 +102,7 @@ def prepare_gptsovits_training(
     prepare_all_script_path = scripts_dir / "run-prepare-all.ps1"
     train_gpt_launcher_path = scripts_dir / "train-gpt-launcher.py"
     train_gpt_script_path = scripts_dir / "run-train-gpt.ps1"
+    train_sovits_launcher_path = scripts_dir / "train-sovits-launcher.py"
     train_sovits_script_path = scripts_dir / "run-train-sovits.ps1"
     train_all_script_path = scripts_dir / "run-train-all.ps1"
     readme_path = training_root / "README.zh-CN.md"
@@ -151,11 +152,18 @@ def prepare_gptsovits_training(
         encoding="utf-8",
         newline="\n",
     )
-    train_sovits_script_path.write_text(
-        _build_train_sovits_script(
+    train_sovits_launcher_path.write_text(
+        _build_train_sovits_launcher(
             gpt_sovits_root=resolved_gpt_root,
             sovits_config_path=sovits_config_path,
             gpu=gpu,
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    train_sovits_script_path.write_text(
+        _build_train_sovits_script(
+            train_sovits_launcher_path=train_sovits_launcher_path,
         ),
         encoding="utf-8",
         newline="\n",
@@ -855,11 +863,456 @@ $pythonExe = if ($env:CONDA_PREFIX -and (Test-Path (Join-Path $env:CONDA_PREFIX 
 """
 
 
-def _build_train_sovits_script(*, gpt_sovits_root: Path, sovits_config_path: Path, gpu: str) -> str:
+def _build_train_sovits_launcher(*, gpt_sovits_root: Path, sovits_config_path: Path, gpu: str) -> str:
+    return f"""from __future__ import annotations
+
+import logging
+import os
+import platform
+import sys
+from pathlib import Path
+
+
+if "_CUDA_VISIBLE_DEVICES" in os.environ:
+    os.environ["CUDA_VISIBLE_DEVICES"] = os.environ["_CUDA_VISIBLE_DEVICES"]
+else:
+    os.environ["CUDA_VISIBLE_DEVICES"] = {json.dumps(gpu)}
+
+GPT_SOVITS_ROOT = Path({json.dumps(str(gpt_sovits_root))})
+CONFIG_PATH = Path({json.dumps(str(sovits_config_path))})
+
+sys.path.insert(0, str(GPT_SOVITS_ROOT))
+sys.path.insert(0, str(GPT_SOVITS_ROOT / "GPT_SoVITS"))
+
+import torch
+from torch.cuda.amp import GradScaler, autocast
+from torch.nn import functional as F
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+
+import utils
+from module import commons
+from module.data_utils import DistributedBucketSampler, TextAudioSpeakerCollate, TextAudioSpeakerLoader
+from module.losses import discriminator_loss, feature_loss, generator_loss, kl_loss
+from module.mel_processing import mel_spectrogram_torch, spec_to_mel_torch
+from module.models import MultiPeriodDiscriminator, SynthesizerTrn
+from process_ckpt import savee
+
+
+logging.getLogger("matplotlib").setLevel(logging.INFO)
+logging.getLogger("h5py").setLevel(logging.INFO)
+logging.getLogger("numba").setLevel(logging.INFO)
+
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = False
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+torch.set_float32_matmul_precision("medium")
+
+BOUNDARIES = [
+    32,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900,
+    1000,
+    1100,
+    1200,
+    1300,
+    1400,
+    1500,
+    1600,
+    1700,
+    1800,
+    1900,
+]
+
+
+def _to_float(value):
+    if value is None:
+        return None
+    if hasattr(value, "detach"):
+        value = value.detach().cpu()
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _move_to_device(tensor, device):
+    if tensor is None:
+        return None
+    return tensor.to(device, non_blocking=torch.cuda.is_available())
+
+
+def _build_train_loader(hps):
+    train_dataset = TextAudioSpeakerLoader(hps.data, version=hps.model.version)
+    train_sampler = DistributedBucketSampler(
+        train_dataset,
+        hps.train.batch_size,
+        BOUNDARIES,
+        num_replicas=1,
+        rank=0,
+        shuffle=True,
+    )
+    collate_fn = TextAudioSpeakerCollate(version=hps.model.version)
+    num_workers = 0 if platform.system() == "Windows" else 5
+    kwargs = {{
+        "shuffle": False,
+        "pin_memory": torch.cuda.is_available(),
+        "collate_fn": collate_fn,
+        "batch_sampler": train_sampler,
+        "num_workers": num_workers,
+        "persistent_workers": num_workers > 0,
+    }}
+    if num_workers > 0:
+        kwargs["prefetch_factor"] = 3
+    train_loader = DataLoader(train_dataset, **kwargs)
+    return train_loader, train_sampler
+
+
+def _build_models_and_optimizers(hps, device):
+    net_g = SynthesizerTrn(
+        hps.data.filter_length // 2 + 1,
+        hps.train.segment_size // hps.data.hop_length,
+        n_speakers=hps.data.n_speakers,
+        **hps.model,
+    ).to(device)
+    net_d = MultiPeriodDiscriminator(hps.model.use_spectral_norm, version=hps.model.version).to(device)
+
+    te_p = list(map(id, net_g.enc_p.text_embedding.parameters()))
+    et_p = list(map(id, net_g.enc_p.encoder_text.parameters()))
+    mrte_p = list(map(id, net_g.enc_p.mrte.parameters()))
+    base_params = filter(
+        lambda p: id(p) not in te_p + et_p + mrte_p and p.requires_grad,
+        net_g.parameters(),
+    )
+
+    optim_g = torch.optim.AdamW(
+        [
+            {{"params": base_params, "lr": hps.train.learning_rate}},
+            {{
+                "params": net_g.enc_p.text_embedding.parameters(),
+                "lr": hps.train.learning_rate * hps.train.text_low_lr_rate,
+            }},
+            {{
+                "params": net_g.enc_p.encoder_text.parameters(),
+                "lr": hps.train.learning_rate * hps.train.text_low_lr_rate,
+            }},
+            {{
+                "params": net_g.enc_p.mrte.parameters(),
+                "lr": hps.train.learning_rate * hps.train.text_low_lr_rate,
+            }},
+        ],
+        hps.train.learning_rate,
+        betas=hps.train.betas,
+        eps=hps.train.eps,
+    )
+    optim_d = torch.optim.AdamW(
+        net_d.parameters(),
+        hps.train.learning_rate,
+        betas=hps.train.betas,
+        eps=hps.train.eps,
+    )
+
+    return net_g, net_d, optim_g, optim_d
+
+
+def _maybe_resume_or_load_pretrained(hps, net_g, net_d, optim_g, optim_d, train_loader, logger):
+    logs_dir = Path(hps.data.exp_dir) / f"logs_s2_{{hps.model.version}}"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    epoch_str = 1
+    global_step = 0
+
+    try:
+        d_ckpt = utils.latest_checkpoint_path(str(logs_dir), "D_*.pth")
+        utils.load_checkpoint(d_ckpt, net_d, optim_d)
+        logger.info("loaded D checkpoint")
+        g_ckpt = utils.latest_checkpoint_path(str(logs_dir), "G_*.pth")
+        _, _, _, epoch_str = utils.load_checkpoint(g_ckpt, net_g, optim_g)
+        epoch_str += 1
+        global_step = (epoch_str - 1) * len(train_loader)
+    except Exception:
+        epoch_str = 1
+        global_step = 0
+        if hps.train.pretrained_s2G and os.path.exists(hps.train.pretrained_s2G):
+            logger.info("loaded pretrained %s", hps.train.pretrained_s2G)
+            print(
+                "loaded pretrained %s" % hps.train.pretrained_s2G,
+                net_g.load_state_dict(
+                    torch.load(hps.train.pretrained_s2G, map_location="cpu", weights_only=False)["weight"],
+                    strict=False,
+                ),
+            )
+        if hps.train.pretrained_s2D and os.path.exists(hps.train.pretrained_s2D):
+            logger.info("loaded pretrained %s", hps.train.pretrained_s2D)
+            print(
+                "loaded pretrained %s" % hps.train.pretrained_s2D,
+                net_d.load_state_dict(
+                    torch.load(hps.train.pretrained_s2D, map_location="cpu", weights_only=False)["weight"],
+                    strict=False,
+                ),
+            )
+
+    return logs_dir, epoch_str, global_step
+
+
+def _train_epoch(epoch, hps, device, net_g, net_d, optim_g, optim_d, scaler, train_loader, train_sampler, logger, writer, global_step):
+    train_sampler.set_epoch(epoch)
+    net_g.train()
+    net_d.train()
+
+    total_batches = len(train_loader)
+    print(f"Epoch {{epoch}}/{{hps.train.epochs}} started")
+
+    for batch_idx, data in enumerate(train_loader, start=1):
+        if hps.model.version in {{"v2Pro", "v2ProPlus"}}:
+            ssl, ssl_lengths, spec, spec_lengths, y, y_lengths, text, text_lengths, sv_emb = data
+        else:
+            ssl, ssl_lengths, spec, spec_lengths, y, y_lengths, text, text_lengths = data
+            sv_emb = None
+
+        spec = _move_to_device(spec, device)
+        spec_lengths = _move_to_device(spec_lengths, device)
+        y = _move_to_device(y, device)
+        y_lengths = _move_to_device(y_lengths, device)
+        ssl = _move_to_device(ssl, device)
+        ssl.requires_grad = False
+        text = _move_to_device(text, device)
+        text_lengths = _move_to_device(text_lengths, device)
+        if sv_emb is not None:
+            sv_emb = _move_to_device(sv_emb, device)
+
+        with autocast(enabled=hps.train.fp16_run):
+            if hps.model.version in {{"v2Pro", "v2ProPlus"}}:
+                (
+                    y_hat,
+                    kl_ssl,
+                    ids_slice,
+                    x_mask,
+                    z_mask,
+                    (z, z_p, m_p, logs_p, m_q, logs_q),
+                    stats_ssl,
+                ) = net_g(ssl, spec, spec_lengths, text, text_lengths, sv_emb)
+            else:
+                (
+                    y_hat,
+                    kl_ssl,
+                    ids_slice,
+                    x_mask,
+                    z_mask,
+                    (z, z_p, m_p, logs_p, m_q, logs_q),
+                    stats_ssl,
+                ) = net_g(ssl, spec, spec_lengths, text, text_lengths)
+
+            mel = spec_to_mel_torch(
+                spec,
+                hps.data.filter_length,
+                hps.data.n_mel_channels,
+                hps.data.sampling_rate,
+                hps.data.mel_fmin,
+                hps.data.mel_fmax,
+            )
+            y_mel = commons.slice_segments(mel, ids_slice, hps.train.segment_size // hps.data.hop_length)
+            y_hat_mel = mel_spectrogram_torch(
+                y_hat.squeeze(1),
+                hps.data.filter_length,
+                hps.data.n_mel_channels,
+                hps.data.sampling_rate,
+                hps.data.hop_length,
+                hps.data.win_length,
+                hps.data.mel_fmin,
+                hps.data.mel_fmax,
+            )
+            y_slice = commons.slice_segments(y, ids_slice * hps.data.hop_length, hps.train.segment_size)
+            y_d_hat_r, y_d_hat_g, _, _ = net_d(y_slice, y_hat.detach())
+            with autocast(enabled=False):
+                loss_disc, _, _ = discriminator_loss(y_d_hat_r, y_d_hat_g)
+                loss_disc_all = loss_disc
+
+        optim_d.zero_grad()
+        scaler.scale(loss_disc_all).backward()
+        scaler.unscale_(optim_d)
+        grad_norm_d = commons.clip_grad_value_(net_d.parameters(), None)
+        scaler.step(optim_d)
+
+        with autocast(enabled=hps.train.fp16_run):
+            y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(y_slice, y_hat)
+            with autocast(enabled=False):
+                loss_mel = F.l1_loss(y_mel, y_hat_mel) * hps.train.c_mel
+                loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * hps.train.c_kl
+                loss_fm = feature_loss(fmap_r, fmap_g)
+                loss_gen, _ = generator_loss(y_d_hat_g)
+                loss_gen_all = loss_gen + loss_fm + loss_mel + kl_ssl + loss_kl
+
+        optim_g.zero_grad()
+        scaler.scale(loss_gen_all).backward()
+        scaler.unscale_(optim_g)
+        grad_norm_g = commons.clip_grad_value_(net_g.parameters(), None)
+        scaler.step(optim_g)
+        scaler.update()
+
+        if global_step % hps.train.log_interval == 0:
+            lr = optim_g.param_groups[0]["lr"]
+            logger.info(
+                "Train Epoch: %s [%.0f%%]",
+                epoch,
+                100.0 * (batch_idx - 1) / max(total_batches, 1),
+            )
+            logger.info(
+                [
+                    loss_disc.item(),
+                    loss_gen.item(),
+                    loss_fm.item(),
+                    loss_mel.item(),
+                    kl_ssl.item(),
+                    loss_kl.item(),
+                    global_step,
+                    lr,
+                ]
+            )
+            print(
+                " | ".join(
+                    [
+                        f"Epoch {{epoch}}",
+                        f"batch {{batch_idx}}/{{total_batches}}",
+                        f"global_step {{global_step}}",
+                        f"loss_g {{loss_gen_all.item():.4f}}",
+                        f"loss_d {{loss_disc_all.item():.4f}}",
+                        f"mel {{loss_mel.item():.4f}}",
+                        f"lr {{lr:.6f}}",
+                    ]
+                )
+            )
+            scalar_dict = {{
+                "loss/g/total": loss_gen_all,
+                "loss/d/total": loss_disc_all,
+                "learning_rate": lr,
+                "grad_norm_d": grad_norm_d,
+                "grad_norm_g": grad_norm_g,
+                "loss/g/fm": loss_fm,
+                "loss/g/mel": loss_mel,
+                "loss/g/kl_ssl": kl_ssl,
+                "loss/g/kl": loss_kl,
+            }}
+            utils.summarize(writer=writer, global_step=global_step, scalars=scalar_dict)
+
+        global_step += 1
+
+    print(f"Epoch {{epoch}}/{{hps.train.epochs}} finished")
+    logger.info("====> Epoch: %s", epoch)
+    return global_step
+
+
+def _save_epoch_artifacts(epoch, hps, net_g, net_d, optim_g, optim_d, logger, global_step):
+    logs_dir = Path(hps.data.exp_dir) / f"logs_s2_{{hps.model.version}}"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    if epoch % hps.train.save_every_epoch != 0:
+        return
+
+    if hps.train.if_save_latest == 0:
+        g_path = logs_dir / f"G_{{global_step}}.pth"
+        d_path = logs_dir / f"D_{{global_step}}.pth"
+    else:
+        g_path = logs_dir / "G_233333333333.pth"
+        d_path = logs_dir / "D_233333333333.pth"
+
+    utils.save_checkpoint(net_g, optim_g, hps.train.learning_rate, epoch, str(g_path))
+    utils.save_checkpoint(net_d, optim_d, hps.train.learning_rate, epoch, str(d_path))
+
+    if hps.train.if_save_every_weights:
+        ckpt = net_g.state_dict()
+        result = savee(
+            ckpt,
+            f"{{hps.name}}_e{{epoch}}_s{{global_step}}",
+            epoch,
+            global_step,
+            hps,
+            model_version=None if hps.model.version not in {{"v2Pro", "v2ProPlus"}} else hps.model.version,
+        )
+        logger.info("saving ckpt %s_e%s:%s", hps.name, epoch, result)
+
+
+def main():
+    hps = utils.get_hparams_from_file(str(CONFIG_PATH))
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    logs_dir = Path(hps.data.exp_dir) / f"logs_s2_{{hps.model.version}}"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
+    logger = utils.get_logger(hps.data.exp_dir)
+    logger.info(hps)
+    writer = SummaryWriter(log_dir=hps.s2_ckpt_dir)
+    SummaryWriter(log_dir=os.path.join(hps.s2_ckpt_dir, "eval")).close()
+
+    torch.manual_seed(hps.train.seed)
+
+    train_loader, train_sampler = _build_train_loader(hps)
+    net_g, net_d, optim_g, optim_d = _build_models_and_optimizers(hps, device)
+    _, epoch_str, global_step = _maybe_resume_or_load_pretrained(
+        hps,
+        net_g,
+        net_d,
+        optim_g,
+        optim_d,
+        train_loader,
+        logger,
+    )
+
+    scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
+        optim_g,
+        gamma=hps.train.lr_decay,
+        last_epoch=-1,
+    )
+    scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
+        optim_d,
+        gamma=hps.train.lr_decay,
+        last_epoch=-1,
+    )
+    for _ in range(epoch_str):
+        scheduler_g.step()
+        scheduler_d.step()
+
+    scaler = GradScaler(enabled=hps.train.fp16_run)
+
+    print(f"Training started: epochs={{hps.train.epochs}}, batches_per_epoch={{len(train_loader)}}")
+    print("start training from epoch %s" % epoch_str)
+    for epoch in range(epoch_str, hps.train.epochs + 1):
+        global_step = _train_epoch(
+            epoch,
+            hps,
+            device,
+            net_g,
+            net_d,
+            optim_g,
+            optim_d,
+            scaler,
+            train_loader,
+            train_sampler,
+            logger,
+            writer,
+            global_step,
+        )
+        _save_epoch_artifacts(epoch, hps, net_g, net_d, optim_g, optim_d, logger, global_step)
+        scheduler_g.step()
+        scheduler_d.step()
+
+    writer.close()
+    print("Training ended.")
+    print("SoVITS training finished.")
+
+
+if __name__ == "__main__":
+    main()
+"""
+
+
+def _build_train_sovits_script(*, train_sovits_launcher_path: Path) -> str:
     return f"""$ErrorActionPreference = 'Stop'
 $env:PYTHONNOUSERSITE = '1'
-$env:PYTHONPATH = '{gpt_sovits_root};{gpt_sovits_root / "GPT_SoVITS"}'
-$env:_CUDA_VISIBLE_DEVICES = '{gpu}'
 
 $pythonExe = if ($env:CONDA_PREFIX -and (Test-Path (Join-Path $env:CONDA_PREFIX 'python.exe'))) {{
   Join-Path $env:CONDA_PREFIX 'python.exe'
@@ -869,8 +1322,7 @@ $pythonExe = if ($env:CONDA_PREFIX -and (Test-Path (Join-Path $env:CONDA_PREFIX 
   (Get-Command python -ErrorAction Stop).Source
 }}
 
-Set-Location '{gpt_sovits_root}'
-& $pythonExe -s GPT_SoVITS/s2_train.py --config '{sovits_config_path}'
+& $pythonExe -s '{train_sovits_launcher_path}'
 """
 
 

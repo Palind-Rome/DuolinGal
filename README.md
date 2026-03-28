@@ -71,7 +71,7 @@ python -m unittest discover -s tests
 - `FFmpeg`
   Planned for audio preprocessing.
 - `GPT-SoVITS`
-  Supported for training list preparation and speaker-specific training workspace generation; actual model installation remains external, and generated GPT training workspaces use a Windows-safe single-GPU launcher.
+  Supported for training list preparation and speaker-specific training workspace generation; actual model installation remains external, and generated GPT / SoVITS training workspaces use Windows-safe single-GPU launchers.
 
 ## Local API
 
@@ -122,6 +122,7 @@ DuolinGal/
 - [Feasibility and Risk Assessment](docs/feasibility.zh-CN.md)
 - [Project Plan](docs/project-plan.zh-CN.md)
 - [Structure and Runtime Flow](docs/structure-and-runtime.zh-CN.md)
+- [Path and Directory Assumptions](docs/path-assumptions.zh-CN.md)
 - [Local Validation Checklist](docs/local-validation-checklist.zh-CN.md)
 - [Single-line PoC Guide](docs/single-line-poc.zh-CN.md)
 - [Patch Packaging Guide](docs/patch-packaging.zh-CN.md)

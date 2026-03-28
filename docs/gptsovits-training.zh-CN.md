@@ -105,17 +105,18 @@ GPT-SoVITS 训练时吃的不是“原始 OGG + 原始文本”。
 
 ## Windows 单卡训练说明
 
-当前仓库在 GPT 第一阶段训练上，默认生成的是：
+当前仓库在 Windows 单卡训练上，默认会生成：
 
 - `scripts/train-gpt-launcher.py`
+- `scripts/train-sovits-launcher.py`
 
-这是一个 Windows-safe 单卡 launcher。它和直接调用官方 `s1_train.py` 的区别是：
+这些都是 Windows-safe 单卡 launcher。它们和直接调用官方 `s1_train.py` / `s2_train.py` 的区别是：
 
 - 保留相同的模型、配置、数据和权重路径
 - 在 Windows 单卡环境下改用更稳的单卡训练方式
 - 不再强行走单卡 DDP
-- 关闭会触发控制台编码问题的 Rich 动态进度条
-- 改为输出纯文本训练进度
+- GPT 阶段关闭会触发控制台编码问题的 Rich 动态进度条
+- 两个阶段都改为输出更容易追踪的纯文本训练进度
 
 这样做的原因不是“改模型”，而是“让训练在 Windows 单卡上稳定跑起来”。
 
@@ -215,7 +216,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\run-train-sovits.ps1
 当前仍然存在、值得后续继续处理的问题包括：
 
 - GPT-SoVITS 本地安装在 Windows 上仍有环境差异，部分依赖和运行时数据需要手工补齐
-- 当前仓库已经验证了 GPT 第一阶段在 Windows 单卡上的稳定启动，但 SoVITS 阶段仍需要完整实测闭环
+- 当前仓库已经验证了 GPT 第一阶段在 Windows 单卡上的稳定启动；SoVITS 阶段现在也会生成同类 launcher，但仍以本轮实际重跑结果为准
 - 训练停止条件、最佳 epoch 选择、试听回归判断，目前主要依赖人工判断
 - 生成语音的响度、语气稳定性、角色一致性，还没有完全自动化的 QA 规则
 - Web GUI 还没有落地，当前仍然偏向本地脚本工作流
