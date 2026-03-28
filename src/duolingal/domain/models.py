@@ -1,9 +1,15 @@
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+try:  # Python 3.11+
+    from enum import StrEnum
+except ImportError:  # pragma: no cover - compatibility path for Python 3.10 helper envs.
+    class StrEnum(str, Enum):
+        pass
 
 
 class ConfidenceLevel(StrEnum):
