@@ -167,11 +167,15 @@ class GptSovitsPreparationTests(unittest.TestCase):
                 )
 
             result = prepare_gptsovits_batch(project_root, "ムラサメ", limit=2)
+            rerun = prepare_gptsovits_batch(project_root, "ムラサメ", limit=2)
 
             self.assertEqual(result.item_count, 2)
             self.assertEqual(result.prompt_line_id, "scene001-0001")
+            self.assertEqual(rerun.item_count, 2)
             self.assertTrue((Path(result.batch_dir) / "requests.jsonl").exists())
-            self.assertTrue((Path(result.batch_dir) / "invoke_api_v2.ps1").exists())
+            script_path = Path(result.batch_dir) / "invoke_api_v2.ps1"
+            self.assertTrue(script_path.exists())
+            self.assertTrue(script_path.read_text(encoding="utf-8").startswith("param("))
 
     def test_prepare_gptsovits_batch_cli_outputs_summary_json(self) -> None:
         with temporary_workspace() as temp_dir:

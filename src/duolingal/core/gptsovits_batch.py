@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import json
-import shutil
 from pathlib import Path
 
 from duolingal.core.workspace import load_project_manifest
@@ -39,8 +38,6 @@ def prepare_gptsovits_batch(
     batch_name = f"first-{len(target_rows):02d}-en"
     batch_dir = speaker_dir / "gptsovits" / "batches" / batch_name
     output_dir = batch_dir / "outputs"
-    if batch_dir.exists():
-        shutil.rmtree(batch_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     request_list_path = batch_dir / "requests.jsonl"
@@ -188,11 +185,11 @@ def _pick_prompt_row(rows: list[dict[str, str]], prompt_line_id: str | None) -> 
 
 
 def _build_invoke_script(request_list_path: Path, output_dir: Path) -> str:
-    return f"""$ErrorActionPreference = 'Stop'
-
-param(
+    return f"""param(
   [string]$ApiBase = 'http://127.0.0.1:9880'
 )
+
+$ErrorActionPreference = 'Stop'
 
 $requestList = Join-Path $PSScriptRoot '{request_list_path.name}'
 $outputDir = Join-Path $PSScriptRoot '{output_dir.name}'
