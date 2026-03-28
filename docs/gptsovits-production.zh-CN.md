@@ -117,6 +117,15 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
 
 - `production-status.txt`
 
+## 生产队列里的文本清洗保护
+
+- 英文预览句如果在进入 GPT-SoVITS 前已经退化成“只有标点”的文本，比如 `......` 或 `.`
+  现在会在批次准备阶段被自动跳过，不再送去 `/tts`。
+- 如果仍然有个别句子在 GPT-SoVITS 内部进一步清洗后变成无效文本，生产队列会把它记到：
+  - `batches/<BATCH_NAME>/skipped-invalid-tts.jsonl`
+  然后跳过这单句，继续跑完整个角色和后续角色。
+- 也就是说，单条坏样本不应该再把整晚量产队列直接打断。
+
 里面会写：
 
 - 当前总进度

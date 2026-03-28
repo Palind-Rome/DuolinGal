@@ -6,6 +6,8 @@ import json
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from urllib.error import HTTPError
+from unittest.mock import patch
 
 from support import ensure_src_on_path, temporary_workspace, touch
 
@@ -13,7 +15,7 @@ ensure_src_on_path()
 
 from duolingal.cli import main
 from duolingal.core.analyzer import analyze_game_directory
-from duolingal.core.gptsovits_production import prepare_gptsovits_production
+from duolingal.core.gptsovits_production import _synthesize_batch, prepare_gptsovits_production
 from duolingal.core.workspace import initialize_project_workspace
 
 
@@ -100,6 +102,64 @@ class GptSovitsProductionPreparationTests(unittest.TestCase):
             self.assertEqual(payload["speaker_count"], 1)
             self.assertEqual(payload["sync_game_root"], True)
             self.assertTrue(Path(payload["run_script_path"]).exists())
+
+    def test_synthesize_batch_skips_invalid_text_http_errors(self) -> None:
+        with temporary_workspace() as temp_dir:
+            batch_dir = temp_dir / "batch"
+            output_dir = batch_dir / "outputs"
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            requests = [
+                {
+                    "line_id": "scene001-0001",
+                    "output_file_name": "ok.wav",
+                    "request": {"text": "Hello there."},
+                },
+                {
+                    "line_id": "scene001-0002",
+                    "output_file_name": "skip.wav",
+                    "request": {"text": "......"},
+                },
+            ]
+            (batch_dir / "requests.jsonl").write_text(
+                "\n".join(json.dumps(item, ensure_ascii=False) for item in requests) + "\n",
+                encoding="utf-8",
+            )
+
+            class _FakeResponse:
+                def __init__(self, payload: bytes) -> None:
+                    self.status = 200
+                    self._payload = payload
+
+                def read(self) -> bytes:
+                    return self._payload
+
+                def __enter__(self) -> "_FakeResponse":
+                    return self
+
+                def __exit__(self, exc_type, exc, tb) -> None:
+                    return None
+
+            def fake_urlopen(request, timeout=600):  # type: ignore[no-untyped-def]
+                body = json.loads(request.data.decode("utf-8"))
+                if body["text"] == "......":
+                    raise HTTPError(
+                        request.full_url,
+                        400,
+                        "Bad Request",
+                        hdrs=None,
+                        fp=io.BytesIO(b'{"message":"tts failed","Exception":"\xe8\xaf\xb7\xe8\xbe\x93\xe5\x85\xa5\xe6\x9c\x89\xe6\x95\x88\xe6\x96\x87\xe6\x9c\xac"}'),
+                    )
+                return _FakeResponse(b"wav-data")
+
+            with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+                skipped = _synthesize_batch(batch_dir, 9880)
+
+            self.assertEqual(skipped, {"skip.wav"})
+            self.assertEqual((output_dir / "ok.wav").read_bytes(), b"wav-data")
+            self.assertFalse((output_dir / "skip.wav").exists())
+            skipped_log = (batch_dir / "skipped-invalid-tts.jsonl").read_text(encoding="utf-8")
+            self.assertIn("skip.wav", skipped_log)
 
     def _create_speaker_dataset(
         self,

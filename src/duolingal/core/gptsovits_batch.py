@@ -43,7 +43,11 @@ def prepare_gptsovits_batch(
     if not preview_rows:
         raise ValueError(f"No English preview rows found for speaker: {speaker_name}")
 
-    valid_rows = [row for row in preview_rows if (row.get("en_text") or "").strip() and Path(row["audio_path"]).exists()]
+    valid_rows = [
+        row
+        for row in preview_rows
+        if _has_meaningful_target_text(row.get("en_text") or "") and Path(row["audio_path"]).exists()
+    ]
     if not valid_rows:
         raise ValueError(f"No valid GPT-SoVITS preview rows found for speaker: {speaker_name}")
 
@@ -190,6 +194,7 @@ def prepare_gptsovits_batch(
             "reference_mode=anchor keeps one Japanese reference line for the whole batch.",
             "reference_mode=per-line uses each row's own JP text and audio as the GPT-SoVITS prompt.",
             "reference_mode=auto prefers per-line prompts, but falls back to the anchor prompt for very short, interjection-like, or 3~10-second-invalid reference lines.",
+            "Preview rows whose English target collapses to punctuation-only text are skipped before batch synthesis.",
             "Outputs are staged as WAV first for debugging. Convert to OGG only after the spoken English passes QA.",
         ],
     )
@@ -252,6 +257,13 @@ def _looks_weak_as_prompt(text: str) -> bool:
     if len(core_text) <= 5 and _KANA_ONLY_RE.fullmatch(core_text):
         return True
     return False
+
+
+def _has_meaningful_target_text(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return False
+    return any(char.isalnum() for char in stripped)
 
 
 def _probe_audio_duration_seconds(audio_path: str) -> float | None:

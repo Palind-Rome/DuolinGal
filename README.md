@@ -84,6 +84,8 @@ export-dataset
   `前处理 -> GPT -> SoVITS -> 切权重 -> 批量推理 -> 转 OGG -> 合并覆盖树 -> 重建 patch-build`
 - 队列是可恢复的：
   中断后重新运行同一个 `run-production.ps1`，已完成角色会跳过。
+- 队列对坏样本有基础容错：
+  英文如果退化成纯标点会尽量在批次准备阶段跳过；个别仍被 `/tts` 判为无效文本的行会被记录并跳过，不再整队中断。
 - 队列运行时会持续更新：
   - `production-state.json`
   - `production-status.txt`

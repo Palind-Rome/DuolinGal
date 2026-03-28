@@ -253,6 +253,46 @@ class GptSovitsPreparationTests(unittest.TestCase):
             self.assertEqual(result.items[1].prompt_source, "anchor-fallback")
             self.assertEqual(result.items[1].prompt_line_id, "scene001-0001")
 
+    def test_prepare_gptsovits_batch_skips_punctuation_only_targets(self) -> None:
+        with temporary_workspace() as temp_dir:
+            project_root, _, _ = self._create_project_with_preview(
+                temp_dir,
+                project_id="senren-gptsovits-batch-skip-punct",
+                speaker_name="ムラサメ",
+                rows=[
+                    {
+                        "line_id": "scene001-0001",
+                        "speaker_name": "ムラサメ",
+                        "jp_text": "「ふむ。お主が、吾輩のご主人か？」",
+                        "en_text": "Hmm. So you are my master?",
+                        "audio_name": "mur001_001.ogg",
+                    },
+                    {
+                        "line_id": "scene001-0002",
+                        "speaker_name": "ムラサメ",
+                        "jp_text": "「………」",
+                        "en_text": "......",
+                        "audio_name": "mur001_002.ogg",
+                    },
+                    {
+                        "line_id": "scene001-0003",
+                        "speaker_name": "ムラサメ",
+                        "jp_text": "「違った！」",
+                        "en_text": "No!",
+                        "audio_name": "mur001_003.ogg",
+                    },
+                ],
+            )
+
+            result = prepare_gptsovits_batch(project_root, "ムラサメ", limit=10, reference_mode="auto")
+
+            self.assertEqual(result.item_count, 2)
+            self.assertEqual([item.line_id for item in result.items], ["scene001-0001", "scene001-0003"])
+
+            requests = self._read_requests_jsonl(Path(result.batch_dir) / "requests.jsonl")
+            self.assertEqual(len(requests), 2)
+            self.assertTrue(all(request["request"]["text"] != "......" for request in requests))
+
     def test_prepare_gptsovits_batch_cli_outputs_reference_mode(self) -> None:
         with temporary_workspace() as temp_dir:
             project_root, _, _ = self._create_project_with_preview(

@@ -26,6 +26,8 @@ from duolingal.domain.models import (
     GptSovitsProductionSpeakerPlan,
 )
 
+_INVALID_TTS_DETAIL_MARKERS = ("请输入有效文本", "invalid text")
+
 
 def prepare_gptsovits_production(
     project_root: str | Path,
@@ -347,7 +349,11 @@ def run_gptsovits_production(production_root: str | Path) -> GptSovitsProduction
                 last_event=f"Synthesizing {batch_result.item_count} lines for {speaker_name}.",
                 status_path=status_path,
             )
-            _synthesize_batch(Path(batch_result.batch_dir), plan["api_port"])
+            skipped_output_names = _synthesize_batch(Path(batch_result.batch_dir), plan["api_port"])
+            if skipped_output_names:
+                print(
+                    f"[queue] [{speaker_index}/{total_speakers}] Stage infer -> skipped invalid lines={len(skipped_output_names)}"
+                )
             print(f"[queue] [{speaker_index}/{total_speakers}] Stage convert -> converting WAV to OGG")
             _write_state(
                 state_path,
@@ -362,6 +368,7 @@ def run_gptsovits_production(production_root: str | Path) -> GptSovitsProduction
                 Path(batch_result.batch_dir),
                 combined_override_root,
                 target_sample_rate=int(plan["target_sample_rate"]),
+                skipped_output_names=skipped_output_names,
             )
         finally:
             if speaker_api_process is not None:
@@ -474,7 +481,7 @@ def _select_speakers(dataset_root: Path, *, requested_speakers: list[str], min_l
         preview_count = sum(
             1
             for row in preview_rows
-            if (row.get("en_text") or "").strip() and Path(row.get("audio_path") or "").exists()
+            if _has_meaningful_target_text(row.get("en_text") or "") and Path(row.get("audio_path") or "").exists()
         )
         if line_count < min_lines or preview_count < 1:
             continue
@@ -543,6 +550,7 @@ def _build_production_readme(
         "- 这条队列会顺序执行：前处理 -> GPT -> SoVITS -> 切权重 -> 批量推理 -> 转 OGG\n"
         "- 最终会把所有完成角色的 OGG 合并成一棵总覆盖树\n"
         "- 跑完全队列后，会用这棵总覆盖树重建一次项目级 `patch-build`\n"
+        "- 如果个别英文句子退化成纯标点或被 `/tts` 判为无效文本，队列会记录并跳过该单句，而不是整队中断\n"
         "- 队列运行中会持续更新 `production-state.json` 和 `production-status.txt`\n"
     )
 
@@ -690,10 +698,13 @@ def _set_weight(port: int, endpoint: str, weight_path: Path) -> None:
             raise RuntimeError(f"Weight switch failed for {weight_path}: HTTP {response.status}")
 
 
-def _synthesize_batch(batch_dir: Path, port: int) -> None:
+def _synthesize_batch(batch_dir: Path, port: int) -> set[str]:
     request_list_path = batch_dir / "requests.jsonl"
     output_dir = batch_dir / "outputs"
+    skipped_log_path = batch_dir / "skipped-invalid-tts.jsonl"
     output_dir.mkdir(parents=True, exist_ok=True)
+    skipped_entries: list[dict[str, str]] = []
+    skipped_output_names: set[str] = set()
 
     for line in request_list_path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
@@ -715,12 +726,39 @@ def _synthesize_batch(batch_dir: Path, port: int) -> None:
                 output_path.write_bytes(response.read())
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
+            if _is_invalid_tts_text_error(detail):
+                skipped_output_names.add(entry["output_file_name"])
+                skipped_entries.append(
+                    {
+                        "line_id": str(entry.get("line_id") or ""),
+                        "output_file_name": str(entry.get("output_file_name") or ""),
+                        "detail": detail,
+                    }
+                )
+                print(f"[queue] Skipping invalid GPT-SoVITS text -> {entry['output_file_name']}")
+                continue
             raise RuntimeError(f"TTS request failed for {entry['output_file_name']}: {detail}") from exc
 
+    if skipped_entries:
+        skipped_log_path.write_text(
+            "\n".join(json.dumps(item, ensure_ascii=False) for item in skipped_entries) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
 
-def _merge_batch_outputs_into_override(batch_dir: Path, combined_override_root: Path, *, target_sample_rate: int) -> int:
+    return skipped_output_names
+
+
+def _merge_batch_outputs_into_override(
+    batch_dir: Path,
+    combined_override_root: Path,
+    *,
+    target_sample_rate: int,
+    skipped_output_names: set[str] | None = None,
+) -> int:
     requests_path = batch_dir / "requests.csv"
     outputs_dir = batch_dir / "outputs"
+    skipped = skipped_output_names or set()
     with requests_path.open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
 
@@ -729,6 +767,8 @@ def _merge_batch_outputs_into_override(batch_dir: Path, combined_override_root: 
         source_output_name = (row.get("output_file_name") or "").strip()
         target_voice_file = (row.get("voice_file") or "").strip()
         if not source_output_name or not target_voice_file:
+            continue
+        if source_output_name in skipped:
             continue
 
         source_output_path = outputs_dir / source_output_name
@@ -740,6 +780,18 @@ def _merge_batch_outputs_into_override(batch_dir: Path, combined_override_root: 
         converted += 1
 
     return converted
+
+
+def _is_invalid_tts_text_error(detail: str) -> bool:
+    lowered = detail.lower()
+    return any(marker in detail or marker in lowered for marker in _INVALID_TTS_DETAIL_MARKERS)
+
+
+def _has_meaningful_target_text(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return False
+    return any(char.isalnum() for char in stripped)
 
 
 def _sync_game_root(game_root: Path, combined_override_root: Path) -> str:
