@@ -89,6 +89,8 @@ export-dataset
 - 队列运行时会持续更新：
   - `production-state.json`
   - `production-status.txt`
+- `production-status.txt` 在训练和推理阶段会尽量写出：
+  当前 `epoch/batch` 或已完成句数、阶段百分比、已用时、预计剩余时间。
 
 If your environment still uses an offline extractor instead of KrkrDump, `preflight` may recommend `extract` before `decompile-scripts`.
 

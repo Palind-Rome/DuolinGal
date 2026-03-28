@@ -4,6 +4,7 @@ import csv
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -11,6 +12,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +29,9 @@ from duolingal.domain.models import (
 )
 
 _INVALID_TTS_DETAIL_MARKERS = ("请输入有效文本", "invalid text")
+_TRAINING_STARTED_RE = re.compile(r"Training started: epochs=(\d+), batches_per_epoch=(\d+)")
+_EPOCH_STARTED_RE = re.compile(r"Epoch (\d+)/(\d+) started")
+_EPOCH_BATCH_RE = re.compile(r"Epoch (\d+) \| batch (\d+)/(\d+)")
 
 
 def prepare_gptsovits_production(
@@ -262,6 +267,15 @@ def run_gptsovits_production(production_root: str | Path) -> GptSovitsProduction
                 Path(speaker_plan["train_gpt_script_path"]),
                 logs_dir / f"{experiment_name}-gpt.log",
                 label=f"{speaker_name} GPT",
+                line_handler=_make_training_line_handler(
+                    state_path=state_path,
+                    status_path=status_path,
+                    completed_speakers=completed_speakers,
+                    total_speakers=total_speakers,
+                    current_speaker=speaker_name,
+                    current_stage="train-gpt",
+                    stage_label=f"Training GPT for {speaker_name}",
+                ),
             )
             gpt_weight_path = _find_gpt_weight(
                 Path(speaker_plan["gpt_weights_dir"]),
@@ -292,6 +306,15 @@ def run_gptsovits_production(production_root: str | Path) -> GptSovitsProduction
                 Path(speaker_plan["train_sovits_script_path"]),
                 logs_dir / f"{experiment_name}-sovits.log",
                 label=f"{speaker_name} SoVITS",
+                line_handler=_make_training_line_handler(
+                    state_path=state_path,
+                    status_path=status_path,
+                    completed_speakers=completed_speakers,
+                    total_speakers=total_speakers,
+                    current_speaker=speaker_name,
+                    current_stage="train-sovits",
+                    stage_label=f"Training SoVITS for {speaker_name}",
+                ),
             )
             sovits_weight_path = _find_sovits_weight(
                 Path(speaker_plan["sovits_weights_dir"]),
@@ -349,7 +372,27 @@ def run_gptsovits_production(production_root: str | Path) -> GptSovitsProduction
                 last_event=f"Synthesizing {batch_result.item_count} lines for {speaker_name}.",
                 status_path=status_path,
             )
-            skipped_output_names = _synthesize_batch(Path(batch_result.batch_dir), plan["api_port"])
+            infer_started_at = time.time()
+
+            def _infer_progress_update(progress: dict[str, Any]) -> None:
+                _write_state(
+                    state_path,
+                    completed_speakers,
+                    total_speakers=total_speakers,
+                    current_speaker=speaker_name,
+                    current_stage="infer",
+                    last_event=f"Synthesizing {batch_result.item_count} lines for {speaker_name}.",
+                    status_path=status_path,
+                    stage_progress=progress,
+                )
+
+            skipped_output_names = _synthesize_batch(
+                Path(batch_result.batch_dir),
+                plan["api_port"],
+                progress_callback=_infer_progress_update,
+                started_at=infer_started_at,
+                queue_prefix=f"[queue] [{speaker_index}/{total_speakers}]",
+            )
             if skipped_output_names:
                 print(
                     f"[queue] [{speaker_index}/{total_speakers}] Stage infer -> skipped invalid lines={len(skipped_output_names)}"
@@ -570,6 +613,7 @@ def _write_state(
     current_stage: str,
     last_event: str,
     status_path: Path,
+    stage_progress: dict[str, Any] | None = None,
 ) -> None:
     payload = {
         "completed_speakers": [item.model_dump(mode="json", exclude_none=True) for item in completed_speakers],
@@ -578,6 +622,7 @@ def _write_state(
         "current_speaker": current_speaker,
         "current_stage": current_stage,
         "last_event": last_event,
+        "stage_progress": stage_progress,
         "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
     state_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
@@ -593,9 +638,33 @@ def _write_state(
         f"- current_stage: {current_stage}",
         f"- current_speaker: {current_speaker or '(none)'}",
         f"- last_event: {last_event}",
-        "",
-        "## Recently Completed Speakers",
     ]
+    if stage_progress:
+        status_lines.extend(
+            [
+                f"- stage_completed: {stage_progress.get('completed_units', 0)}/{stage_progress.get('total_units', 0)}",
+                f"- stage_percent: {stage_progress.get('percent_text', '(unknown)')}",
+                f"- stage_elapsed: {_format_duration(stage_progress.get('elapsed_seconds'))}",
+                f"- stage_eta: {_format_duration(stage_progress.get('eta_seconds'))}",
+            ]
+        )
+        current_epoch = stage_progress.get("current_epoch")
+        total_epochs = stage_progress.get("total_epochs")
+        if current_epoch is not None and total_epochs is not None:
+            status_lines.append(f"- epoch: {current_epoch}/{total_epochs}")
+        current_batch = stage_progress.get("current_batch")
+        total_batches = stage_progress.get("total_batches")
+        if current_batch is not None and total_batches is not None:
+            status_lines.append(f"- batch: {current_batch}/{total_batches}")
+        current_item = stage_progress.get("current_item")
+        if current_item:
+            status_lines.append(f"- current_item: {current_item}")
+    status_lines.extend(
+        [
+            "",
+            "## Recently Completed Speakers",
+        ]
+    )
     if completed_lines:
         status_lines.extend(completed_lines)
     else:
@@ -603,7 +672,134 @@ def _write_state(
     status_path.write_text("\n".join(status_lines) + "\n", encoding="utf-8", newline="\n")
 
 
-def _run_powershell_script(script_path: Path, log_path: Path, *, label: str) -> None:
+def _format_duration(seconds: Any) -> str:
+    if seconds is None:
+        return "(unknown)"
+    try:
+        total_seconds = max(0, int(float(seconds)))
+    except (TypeError, ValueError):
+        return "(unknown)"
+
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
+def _build_stage_progress(
+    *,
+    completed_units: int,
+    total_units: int,
+    started_at: float,
+    current_item: str | None = None,
+    current_epoch: int | None = None,
+    total_epochs: int | None = None,
+    current_batch: int | None = None,
+    total_batches: int | None = None,
+) -> dict[str, Any]:
+    elapsed_seconds = max(0.0, time.time() - started_at)
+    eta_seconds = None
+    if completed_units > 0 and total_units > 0 and completed_units <= total_units:
+        units_per_second = completed_units / elapsed_seconds if elapsed_seconds > 0 else None
+        if units_per_second and units_per_second > 0:
+            eta_seconds = (total_units - completed_units) / units_per_second
+
+    percent_text = "(unknown)"
+    if total_units > 0:
+        percent_text = f"{(completed_units / total_units) * 100:.1f}%"
+
+    return {
+        "completed_units": completed_units,
+        "total_units": total_units,
+        "elapsed_seconds": elapsed_seconds,
+        "eta_seconds": eta_seconds,
+        "percent_text": percent_text,
+        "current_item": current_item,
+        "current_epoch": current_epoch,
+        "total_epochs": total_epochs,
+        "current_batch": current_batch,
+        "total_batches": total_batches,
+    }
+
+
+def _make_training_line_handler(
+    *,
+    state_path: Path,
+    status_path: Path,
+    completed_speakers: list[GptSovitsProductionRunSpeakerStatus],
+    total_speakers: int,
+    current_speaker: str,
+    current_stage: str,
+    stage_label: str,
+) -> Callable[[str], None]:
+    tracker: dict[str, Any] = {
+        "started_at": None,
+        "total_epochs": None,
+        "batches_per_epoch": None,
+        "current_epoch": None,
+        "current_batch": None,
+    }
+
+    def _handler(line: str) -> None:
+        training_started = _TRAINING_STARTED_RE.search(line)
+        if training_started:
+            tracker["total_epochs"] = int(training_started.group(1))
+            tracker["batches_per_epoch"] = int(training_started.group(2))
+            tracker["started_at"] = time.time()
+
+        epoch_started = _EPOCH_STARTED_RE.search(line)
+        if epoch_started:
+            tracker["current_epoch"] = int(epoch_started.group(1))
+            tracker["total_epochs"] = int(epoch_started.group(2))
+            tracker["current_batch"] = 0
+
+        epoch_batch = _EPOCH_BATCH_RE.search(line)
+        if epoch_batch:
+            tracker["current_epoch"] = int(epoch_batch.group(1))
+            tracker["current_batch"] = int(epoch_batch.group(2))
+            tracker["batches_per_epoch"] = int(epoch_batch.group(3))
+
+        if tracker["started_at"] is None or tracker["total_epochs"] is None or tracker["batches_per_epoch"] is None:
+            return
+        if tracker["current_epoch"] is None:
+            return
+
+        current_batch = int(tracker["current_batch"] or 0)
+        total_batches = int(tracker["batches_per_epoch"])
+        current_epoch = int(tracker["current_epoch"])
+        total_epochs = int(tracker["total_epochs"])
+        completed_units = ((current_epoch - 1) * total_batches) + current_batch
+        total_units = total_epochs * total_batches
+        progress = _build_stage_progress(
+            completed_units=completed_units,
+            total_units=total_units,
+            started_at=float(tracker["started_at"]),
+            current_epoch=current_epoch,
+            total_epochs=total_epochs,
+            current_batch=current_batch,
+            total_batches=total_batches,
+        )
+        batch_text = f", batch {current_batch}/{total_batches}" if current_batch else ""
+        _write_state(
+            state_path,
+            completed_speakers,
+            total_speakers=total_speakers,
+            current_speaker=current_speaker,
+            current_stage=current_stage,
+            last_event=f"{stage_label}: epoch {current_epoch}/{total_epochs}{batch_text}",
+            status_path=status_path,
+            stage_progress=progress,
+        )
+
+    return _handler
+
+
+def _run_powershell_script(
+    script_path: Path,
+    log_path: Path,
+    *,
+    label: str,
+    line_handler: Callable[[str], None] | None = None,
+) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     command = [
         "powershell",
@@ -628,6 +824,8 @@ def _run_powershell_script(script_path: Path, log_path: Path, *, label: str) -> 
         for line in process.stdout:
             print(f"[{label}] {line}", end="")
             handle.write(line)
+            if line_handler is not None:
+                line_handler(line)
     returncode = process.wait()
     if returncode != 0:
         raise RuntimeError(f"{label} failed with exit code {returncode}. See {log_path}")
@@ -698,20 +896,47 @@ def _set_weight(port: int, endpoint: str, weight_path: Path) -> None:
             raise RuntimeError(f"Weight switch failed for {weight_path}: HTTP {response.status}")
 
 
-def _synthesize_batch(batch_dir: Path, port: int) -> set[str]:
+def _synthesize_batch(
+    batch_dir: Path,
+    port: int,
+    *,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    started_at: float | None = None,
+    queue_prefix: str = "[queue]",
+) -> set[str]:
     request_list_path = batch_dir / "requests.jsonl"
     output_dir = batch_dir / "outputs"
     skipped_log_path = batch_dir / "skipped-invalid-tts.jsonl"
     output_dir.mkdir(parents=True, exist_ok=True)
     skipped_entries: list[dict[str, str]] = []
     skipped_output_names: set[str] = set()
+    entries = [json.loads(line) for line in request_list_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    total_entries = len(entries)
+    started = started_at if started_at is not None else time.time()
 
-    for line in request_list_path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        entry = json.loads(line)
+    for index, entry in enumerate(entries, start=1):
         output_path = output_dir / entry["output_file_name"]
+        stage_progress = _build_stage_progress(
+            completed_units=index - 1,
+            total_units=total_entries,
+            started_at=started,
+            current_item=entry["output_file_name"],
+        )
+        if progress_callback is not None and (index == 1 or (index - 1) % 5 == 0):
+            progress_callback(stage_progress)
         if output_path.exists():
+            stage_progress = _build_stage_progress(
+                completed_units=index,
+                total_units=total_entries,
+                started_at=started,
+                current_item=entry["output_file_name"],
+            )
+            if progress_callback is not None and (index % 5 == 0 or index == total_entries):
+                progress_callback(stage_progress)
+            if index == 1 or index % 25 == 0 or index == total_entries:
+                print(
+                    f"{queue_prefix} Stage infer progress -> {index}/{total_entries} ({stage_progress['percent_text']}) | elapsed {_format_duration(stage_progress['elapsed_seconds'])} | eta {_format_duration(stage_progress['eta_seconds'])}"
+                )
             continue
 
         body = json.dumps(entry["request"], ensure_ascii=False).encode("utf-8")
@@ -736,8 +961,29 @@ def _synthesize_batch(batch_dir: Path, port: int) -> set[str]:
                     }
                 )
                 print(f"[queue] Skipping invalid GPT-SoVITS text -> {entry['output_file_name']}")
+                stage_progress = _build_stage_progress(
+                    completed_units=index,
+                    total_units=total_entries,
+                    started_at=started,
+                    current_item=entry["output_file_name"],
+                )
+                if progress_callback is not None:
+                    progress_callback(stage_progress)
                 continue
             raise RuntimeError(f"TTS request failed for {entry['output_file_name']}: {detail}") from exc
+
+        stage_progress = _build_stage_progress(
+            completed_units=index,
+            total_units=total_entries,
+            started_at=started,
+            current_item=entry["output_file_name"],
+        )
+        if progress_callback is not None and (index % 5 == 0 or index == total_entries):
+            progress_callback(stage_progress)
+        if index == 1 or index % 25 == 0 or index == total_entries:
+            print(
+                f"{queue_prefix} Stage infer progress -> {index}/{total_entries} ({stage_progress['percent_text']}) | elapsed {_format_duration(stage_progress['elapsed_seconds'])} | eta {_format_duration(stage_progress['eta_seconds'])}"
+            )
 
     if skipped_entries:
         skipped_log_path.write_text(

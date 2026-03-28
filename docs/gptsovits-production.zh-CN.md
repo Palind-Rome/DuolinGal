@@ -131,6 +131,11 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
 - 当前总进度
 - 当前角色
 - 当前阶段
+- 如果当前在训练或推理：
+  - 当前 `epoch/batch` 或已完成句数
+  - 当前阶段百分比
+  - 已用时
+  - 预计剩余时间
 - 最近完成的几个角色
 
 也就是说，它不是“一次性脚本”，而是一条可以分多晚推进的可恢复队列。
