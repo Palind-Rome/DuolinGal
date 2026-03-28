@@ -463,8 +463,16 @@ $env:_CUDA_VISIBLE_DEVICES = '{common_paths.gpu}'
 $env:is_half = '{str(common_paths.is_half)}'
 $env:version = '{version}'
 
+$pythonExe = if ($env:CONDA_PREFIX -and (Test-Path (Join-Path $env:CONDA_PREFIX 'python.exe'))) {{
+  Join-Path $env:CONDA_PREFIX 'python.exe'
+}} elseif ($env:VIRTUAL_ENV -and (Test-Path (Join-Path $env:VIRTUAL_ENV 'Scripts\\python.exe'))) {{
+  Join-Path $env:VIRTUAL_ENV 'Scripts\\python.exe'
+}} else {{
+  (Get-Command python -ErrorAction Stop).Source
+}}
+
 Set-Location '{common_paths.gpt_sovits_root}'
-python -s GPT_SoVITS/prepare_datasets/1-get-text.py
+& $pythonExe -s GPT_SoVITS/prepare_datasets/1-get-text.py
 
 $partial = Join-Path $env:opt_dir '2-name2text-0.txt'
 $merged = Join-Path $env:opt_dir '2-name2text.txt'
@@ -489,8 +497,16 @@ $env:all_parts = '1'
 $env:_CUDA_VISIBLE_DEVICES = '{common_paths.gpu}'
 $env:is_half = '{str(common_paths.is_half)}'
 
+$pythonExe = if ($env:CONDA_PREFIX -and (Test-Path (Join-Path $env:CONDA_PREFIX 'python.exe'))) {{
+  Join-Path $env:CONDA_PREFIX 'python.exe'
+}} elseif ($env:VIRTUAL_ENV -and (Test-Path (Join-Path $env:VIRTUAL_ENV 'Scripts\\python.exe'))) {{
+  Join-Path $env:VIRTUAL_ENV 'Scripts\\python.exe'
+}} else {{
+  (Get-Command python -ErrorAction Stop).Source
+}}
+
 Set-Location '{common_paths.gpt_sovits_root}'
-python -s GPT_SoVITS/prepare_datasets/2-get-hubert-wav32k.py
+& $pythonExe -s GPT_SoVITS/prepare_datasets/2-get-hubert-wav32k.py
 
 Write-Host "Prepared 4-cnhubert and 5-wav32k under {common_paths.exp_dir}"
 """
@@ -509,8 +525,16 @@ $env:all_parts = '1'
 $env:_CUDA_VISIBLE_DEVICES = '{common_paths.gpu}'
 $env:is_half = '{str(common_paths.is_half)}'
 
+$pythonExe = if ($env:CONDA_PREFIX -and (Test-Path (Join-Path $env:CONDA_PREFIX 'python.exe'))) {{
+  Join-Path $env:CONDA_PREFIX 'python.exe'
+}} elseif ($env:VIRTUAL_ENV -and (Test-Path (Join-Path $env:VIRTUAL_ENV 'Scripts\\python.exe'))) {{
+  Join-Path $env:VIRTUAL_ENV 'Scripts\\python.exe'
+}} else {{
+  (Get-Command python -ErrorAction Stop).Source
+}}
+
 Set-Location '{common_paths.gpt_sovits_root}'
-python -s GPT_SoVITS/prepare_datasets/3-get-semantic.py
+& $pythonExe -s GPT_SoVITS/prepare_datasets/3-get-semantic.py
 
 $partial = Join-Path $env:opt_dir '6-name2semantic-0.tsv'
 $merged = Join-Path $env:opt_dir '6-name2semantic.tsv'
@@ -540,8 +564,16 @@ $env:PYTHONNOUSERSITE = '1'
 $env:_CUDA_VISIBLE_DEVICES = '{gpu}'
 $env:hz = '25hz'
 
+$pythonExe = if ($env:CONDA_PREFIX -and (Test-Path (Join-Path $env:CONDA_PREFIX 'python.exe'))) {{
+  Join-Path $env:CONDA_PREFIX 'python.exe'
+}} elseif ($env:VIRTUAL_ENV -and (Test-Path (Join-Path $env:VIRTUAL_ENV 'Scripts\\python.exe'))) {{
+  Join-Path $env:VIRTUAL_ENV 'Scripts\\python.exe'
+}} else {{
+  (Get-Command python -ErrorAction Stop).Source
+}}
+
 Set-Location '{gpt_sovits_root}'
-python -s GPT_SoVITS/s1_train.py --config_file '{gpt_config_path}'
+& $pythonExe -s GPT_SoVITS/s1_train.py --config_file '{gpt_config_path}'
 """
 
 
@@ -550,8 +582,16 @@ def _build_train_sovits_script(*, gpt_sovits_root: Path, sovits_config_path: Pat
 $env:PYTHONNOUSERSITE = '1'
 $env:_CUDA_VISIBLE_DEVICES = '{gpu}'
 
+$pythonExe = if ($env:CONDA_PREFIX -and (Test-Path (Join-Path $env:CONDA_PREFIX 'python.exe'))) {{
+  Join-Path $env:CONDA_PREFIX 'python.exe'
+}} elseif ($env:VIRTUAL_ENV -and (Test-Path (Join-Path $env:VIRTUAL_ENV 'Scripts\\python.exe'))) {{
+  Join-Path $env:VIRTUAL_ENV 'Scripts\\python.exe'
+}} else {{
+  (Get-Command python -ErrorAction Stop).Source
+}}
+
 Set-Location '{gpt_sovits_root}'
-python -s GPT_SoVITS/s2_train.py --config '{sovits_config_path}'
+& $pythonExe -s GPT_SoVITS/s2_train.py --config '{sovits_config_path}'
 """
 
 

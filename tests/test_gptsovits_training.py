@@ -86,6 +86,10 @@ class GptSovitsTrainingPreparationTests(unittest.TestCase):
             self.assertTrue(prepare_all_script.exists())
             self.assertIn("run-prepare-stage1.ps1", prepare_all_script.read_text(encoding="utf-8"))
 
+            prepare_stage1_script_text = Path(result.prepare_stage1_script_path).read_text(encoding="utf-8")
+            self.assertIn("CONDA_PREFIX", prepare_stage1_script_text)
+            self.assertIn("python.exe", prepare_stage1_script_text)
+
             gpt_config_text = Path(result.gpt_config_path).read_text(encoding="utf-8")
             self.assertIn("pretrained_s1", gpt_config_text)
             self.assertIn("mur-v2", gpt_config_text)
