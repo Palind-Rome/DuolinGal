@@ -35,6 +35,37 @@ GPT-SoVITS 官方仓库里有两条直接相关的信息：
 官方仓库：
 [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS)
 
+## 本机推荐安装方式
+
+GPT-SoVITS 官方当前明确写的是：
+
+```powershell
+conda create -n GPTSoVits python=3.10
+conda activate GPTSoVits
+pwsh -F install.ps1 --Device <CU126|CU128|CPU> --Source <HF|HF-Mirror|ModelScope>
+```
+
+如果你更想用 `uv` 加快 Python 依赖安装，当前更稳的做法是**混合路线**：
+
+1. 仍然用 `conda` 创建环境
+2. 用 `uv pip` 替代官方手动安装里的 `pip install`
+3. `ffmpeg` 仍然按官方方式处理
+
+以这台机器当前的 `RTX 4060 + CUDA 12.8` 为例，推荐：
+
+```powershell
+cd D:\DuolinGal\tools
+git clone https://github.com/RVC-Boss/GPT-SoVITS.git
+cd .\GPT-SoVITS
+conda create -n GPTSoVits python=3.10
+conda activate GPTSoVits
+uv pip install -r .\extra-req.txt --no-deps
+uv pip install -r .\requirements.txt
+conda install ffmpeg
+```
+
+如果这条混合路线在某个依赖上卡住，再回退到官方 `install.ps1 --Device CU128 --Source HF-Mirror` 即可。
+
 ## 命令
 
 以丛雨为例，先取前 10 句：
