@@ -132,6 +132,7 @@ class GptSovitsTrainingPreparationTests(unittest.TestCase):
             sovits_config = json.loads(Path(result.sovits_config_path).read_text(encoding="utf-8"))
             self.assertEqual(sovits_config["train"]["pretrained_s2G"].split("\\")[-1], "s2G2333k.pth")
             self.assertEqual(sovits_config["train"]["gpu_numbers"], "0")
+            self.assertEqual(sovits_config["train"]["epochs"], 6)
 
     def test_prepare_gptsovits_training_cli_outputs_summary_json(self) -> None:
         with temporary_workspace() as temp_dir:

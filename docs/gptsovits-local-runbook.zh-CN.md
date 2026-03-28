@@ -123,7 +123,7 @@ cd "<REPO_ROOT>"
 $env:PYTHONNOUSERSITE='1'
 $env:PYTHONPATH='src'
 conda activate GPTSoVits
-python -m duolingal prepare-gptsovits-batch "<PROJECT_ROOT>" --speaker "ムラサメ" --limit 10
+python -m duolingal prepare-gptsovits-batch "<PROJECT_ROOT>" --speaker "ムラサメ" --limit 10 --reference-mode auto
 ```
 
 输出目录会在：
@@ -192,6 +192,13 @@ Get-Content $requestList -Encoding UTF8 | ForEach-Object { ... }
 - 已经得到稳定的丛雨音色
 
 ## 下一步建议
+
+如果继续进入角色专属训练，这轮丛雨本地验证目前记录到的第一个满意停点是：
+
+- GPT：`e12`
+- SoVITS：`e6`
+
+也就是说，当前更推荐把 SoVITS 当作“先训到 5~6 轮就试听”的阶段，而不是默认一路跑到更高 epoch。
 
 1. 先抽查前 10 句英文输出，挑 1 到 2 句最像样的样本
 2. 把它们转成游戏可替换的 `.ogg`

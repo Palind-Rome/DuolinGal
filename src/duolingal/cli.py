@@ -117,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
     gptsovits_train_parser.add_argument("--gpu", default="0", help="GPU index string, such as 0.")
     gptsovits_train_parser.add_argument("--full-precision", action="store_true", help="Disable half precision in generated training scripts.")
     gptsovits_train_parser.add_argument("--gpt-epochs", type=int, default=12, help="GPT stage epoch count for the generated config.")
-    gptsovits_train_parser.add_argument("--sovits-epochs", type=int, default=20, help="SoVITS stage epoch count for the generated config.")
+    gptsovits_train_parser.add_argument("--sovits-epochs", type=int, default=6, help="SoVITS stage epoch count for the generated config.")
     gptsovits_train_parser.add_argument("--gpt-batch-size", type=int, default=4, help="GPT stage batch size for the generated config.")
     gptsovits_train_parser.add_argument("--sovits-batch-size", type=int, default=4, help="SoVITS stage batch size for the generated config.")
 

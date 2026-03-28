@@ -210,7 +210,7 @@ class ProjectService:
         gpu: str = "0",
         is_half: bool = True,
         gpt_epochs: int = 12,
-        sovits_epochs: int = 20,
+        sovits_epochs: int = 6,
         gpt_batch_size: int = 4,
         sovits_batch_size: int = 4,
     ) -> GptSovitsTrainingPreparationResult:

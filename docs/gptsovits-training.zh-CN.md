@@ -38,7 +38,7 @@ python -m duolingal prepare-gptsovits-train "<PROJECT_ROOT>" --speaker "<SPEAKER
 - `--gpu 0`
 - `--full-precision`
 - `--gpt-epochs 12`
-- `--sovits-epochs 20`
+- `--sovits-epochs 6`
 - `--gpt-batch-size 4`
 - `--sovits-batch-size 4`
 
@@ -174,6 +174,26 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\run-train-sovits.ps1
 - 日志与 checkpoint 正常增长
 
 之后再开始 SoVITS。
+
+## 当前经验默认值
+
+当前仓库默认生成的训练工作区会使用：
+
+- `GPT epochs = 12`
+- `SoVITS epochs = 6`
+
+这不是官方硬性推荐，而是基于当前《千恋万花》丛雨这轮本地实测得到的保守默认：
+
+- GPT 在 `e12` 时已经稳定可用
+- SoVITS 在 `e5 ~ e6` 左右就已经达到第一轮“主观听感满意”
+- 再继续向 `e7+` 训练，收益未必明显，反而更值得警惕过拟合
+
+所以如果你只是想先拿到一个可试听、可回灌、可继续迭代的角色模型，`12 + 6` 是一个更实用的起点。
+
+如果后续换角色、换数据规模、换语言组合，也仍然建议：
+
+- 先用这个保守默认值起步
+- 再通过中途 checkpoint 试听决定是否继续加 epoch
 
 ## 设计原则
 
