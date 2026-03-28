@@ -202,7 +202,7 @@ if (-not (Test-Path $outputDir -PathType Container)) {{
   New-Item -ItemType Directory -Path $outputDir | Out-Null
 }}
 
-Get-Content $requestList | ForEach-Object {{
+Get-Content $requestList -Encoding UTF8 | ForEach-Object {{
   if (-not $_.Trim()) {{
     return
   }}
