@@ -553,6 +553,14 @@ $pythonExe = if ($env:CONDA_PREFIX -and (Test-Path (Join-Path $env:CONDA_PREFIX 
   (Get-Command python -ErrorAction Stop).Source
 }}
 
+$stage3Config = Join-Path $env:opt_dir 's2config.stage3.json'
+$config = Get-Content $env:s2config_path -Raw -Encoding UTF8 | ConvertFrom-Json
+if ($config.model -and $config.model.PSObject.Properties.Name -contains 'version') {{
+  $null = $config.model.PSObject.Properties.Remove('version')
+}}
+$config | ConvertTo-Json -Depth 100 | Set-Content -Encoding UTF8 $stage3Config
+$env:s2config_path = $stage3Config
+
 Set-Location '{common_paths.gpt_sovits_root}'
 & $pythonExe -s GPT_SoVITS/prepare_datasets/3-get-semantic.py
 
@@ -563,6 +571,9 @@ if (-not (Test-Path $partial -PathType Leaf)) {{
 }}
 @('item_name`tsemantic_audio') + (Get-Content $partial -Encoding UTF8) | Set-Content -Encoding UTF8 $merged
 Remove-Item $partial -Force
+if (Test-Path $stage3Config -PathType Leaf) {{
+  Remove-Item $stage3Config -Force
+}}
 Write-Host "Prepared $merged"
 """
 
