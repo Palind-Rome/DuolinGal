@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import re
+import subprocess
 from pathlib import Path
 from typing import Literal
 
@@ -15,6 +16,8 @@ PromptSource = Literal["anchor", "self", "anchor-fallback"]
 _REFERENCE_MODES: set[str] = {"anchor", "per-line", "auto"}
 _PROMPT_STRIP_RE = re.compile(r"[「」『』（）()\[\]【】〈〉《》〔〕…—ー・,，、。！？!?.~〜\-　\s]")
 _KANA_ONLY_RE = re.compile(r"[ぁ-ゖァ-ヺー]+")
+_REFERENCE_MIN_SECONDS = 3.0
+_REFERENCE_MAX_SECONDS = 10.0
 
 
 def prepare_gptsovits_batch(
@@ -186,7 +189,7 @@ def prepare_gptsovits_batch(
             "requests.jsonl follows the official GPT-SoVITS api_v2 request shape for /tts.",
             "reference_mode=anchor keeps one Japanese reference line for the whole batch.",
             "reference_mode=per-line uses each row's own JP text and audio as the GPT-SoVITS prompt.",
-            "reference_mode=auto prefers per-line prompts, but falls back to the anchor prompt for very short or interjection-like JP lines.",
+            "reference_mode=auto prefers per-line prompts, but falls back to the anchor prompt for very short, interjection-like, or 3~10-second-invalid reference lines.",
             "Outputs are staged as WAV first for debugging. Convert to OGG only after the spoken English passes QA.",
         ],
     )
@@ -234,6 +237,11 @@ def _select_prompt_row(
         return target_row, "self"
     if _looks_weak_as_prompt(target_row.get("jp_text") or ""):
         return anchor_row, "anchor-fallback"
+
+    prompt_duration = _probe_audio_duration_seconds(target_row.get("audio_path") or "")
+    if prompt_duration is not None and not (_REFERENCE_MIN_SECONDS <= prompt_duration <= _REFERENCE_MAX_SECONDS):
+        return anchor_row, "anchor-fallback"
+
     return target_row, "self"
 
 
@@ -244,6 +252,88 @@ def _looks_weak_as_prompt(text: str) -> bool:
     if len(core_text) <= 5 and _KANA_ONLY_RE.fullmatch(core_text):
         return True
     return False
+
+
+def _probe_audio_duration_seconds(audio_path: str) -> float | None:
+    path = Path(audio_path)
+    if not path.exists():
+        return None
+
+    for probe in (_probe_with_soundfile, _probe_with_audioread, _probe_with_ffprobe):
+        duration = probe(path)
+        if duration is not None:
+            return duration
+    return None
+
+
+def _probe_with_soundfile(path: Path) -> float | None:
+    try:
+        import soundfile  # type: ignore
+    except Exception:
+        return None
+
+    try:
+        return float(soundfile.info(str(path)).duration)
+    except Exception:
+        return None
+
+
+def _probe_with_audioread(path: Path) -> float | None:
+    try:
+        import audioread  # type: ignore
+    except Exception:
+        return None
+
+    try:
+        with audioread.audio_open(str(path)) as handle:
+            return float(handle.duration)
+    except Exception:
+        return None
+
+
+def _probe_with_ffprobe(path: Path) -> float | None:
+    commands = (
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(path),
+        ],
+        ["ffmpeg", "-i", str(path)],
+    )
+
+    for command in commands:
+        try:
+            completed = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+                encoding="utf-8",
+                errors="ignore",
+            )
+        except Exception:
+            continue
+
+        if command[0] == "ffprobe":
+            output = (completed.stdout or "").strip()
+            try:
+                return float(output)
+            except ValueError:
+                continue
+
+        duration_match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", completed.stderr or "")
+        if duration_match:
+            hours = int(duration_match.group(1))
+            minutes = int(duration_match.group(2))
+            seconds = float(duration_match.group(3))
+            return hours * 3600 + minutes * 60 + seconds
+
+    return None
 
 
 def _build_invoke_script(request_list_path: Path, output_dir: Path) -> str:
@@ -298,7 +388,7 @@ def _build_notes(
     mode_lines = {
         "anchor": "整批固定使用一条参考句，最稳，但跨句语气恢复有限。",
         "per-line": "每句都使用自己的日语参考句和参考音频，更容易带回原句语气。",
-        "auto": "优先每句自带参考；如果日语参考太短、太像语气词，再回退到锚点参考句。",
+        "auto": "优先每句自带参考；如果日语参考太短、太像语气词，或参考音频不在 3~10 秒内，再回退到锚点参考句。",
     }
     return (
         "# GPT-SoVITS 英文合成批次\n\n"
@@ -317,6 +407,7 @@ def _build_notes(
         "4. 先听 WAV，确认英文自然度通过，再决定是否转成 OGG 回灌游戏\n\n"
         "## 什么时候不适合强行每句自带参考\n\n"
         "- 如果某句日文几乎只有语气词，比如 `えっ`、`うむ`、`……`，它能提供的韵律上下文很弱\n"
+        f"- 如果参考音频时长不在 `{_REFERENCE_MIN_SECONDS:.0f}~{_REFERENCE_MAX_SECONDS:.0f}` 秒内，GPT-SoVITS `api_v2.py` 也会直接拒绝\n"
         "- 即使已经训练出角色基座音色，参考句仍然会影响当前句子的停顿、情绪和落点\n"
         "- 所以 `auto` 往往比无脑 `per-line` 更稳，尤其适合中途试听和批量首轮 QA\n"
     )

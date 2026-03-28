@@ -6,6 +6,7 @@ import json
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from support import ensure_src_on_path, temporary_workspace, touch
 
@@ -212,6 +213,45 @@ class GptSovitsPreparationTests(unittest.TestCase):
                 rows = list(csv.DictReader(handle))
             self.assertEqual(rows[1]["prompt_source"], "anchor-fallback")
             self.assertEqual(rows[2]["prompt_source"], "self")
+
+    def test_prepare_gptsovits_batch_auto_mode_falls_back_for_invalid_reference_duration(self) -> None:
+        with temporary_workspace() as temp_dir:
+            project_root, _, audio_dir = self._create_project_with_preview(
+                temp_dir,
+                project_id="senren-gptsovits-batch-auto-duration",
+                speaker_name="ムラサメ",
+                rows=[
+                    {
+                        "line_id": "scene001-0001",
+                        "speaker_name": "ムラサメ",
+                        "jp_text": "「ふむ。お主が、吾輩のご主人か？」",
+                        "en_text": "Hmm. So you are my master?",
+                        "audio_name": "mur001_001.ogg",
+                    },
+                    {
+                        "line_id": "scene001-0002",
+                        "speaker_name": "ムラサメ",
+                        "jp_text": "「こっちだ、こっち」",
+                        "en_text": "I'm over here.",
+                        "audio_name": "mur001_002.ogg",
+                    },
+                ],
+            )
+
+            duration_map = {
+                str((audio_dir / "mur001_001.ogg").resolve()): 4.2,
+                str((audio_dir / "mur001_002.ogg").resolve()): 1.2,
+            }
+
+            with patch(
+                "duolingal.core.gptsovits_batch._probe_audio_duration_seconds",
+                side_effect=lambda audio_path: duration_map.get(str(audio_path)),
+            ):
+                result = prepare_gptsovits_batch(project_root, "ムラサメ", limit=2, reference_mode="auto")
+
+            self.assertEqual(result.items[0].prompt_source, "self")
+            self.assertEqual(result.items[1].prompt_source, "anchor-fallback")
+            self.assertEqual(result.items[1].prompt_line_id, "scene001-0001")
 
     def test_prepare_gptsovits_batch_cli_outputs_reference_mode(self) -> None:
         with temporary_workspace() as temp_dir:
