@@ -9,11 +9,13 @@ except ModuleNotFoundError:  # pragma: no cover - exercised only when optional d
 from duolingal.domain.models import (
     AnalyzeRequest,
     BuildLinesRequest,
-    DecompileScriptsRequest,
     DatasetExportResult,
+    DecompileScriptsRequest,
+    ExportDatasetRequest,
     ExtractionResult,
     ExtractRequest,
     GameAnalysis,
+    GptSovitsPreparationResult,
     InitProjectRequest,
     KrkrDumpPreparationResult,
     LinesBuildResult,
@@ -21,10 +23,10 @@ from duolingal.domain.models import (
     PocPreparationResult,
     PreflightReport,
     PreflightRequest,
-    PreparePocRequest,
-    PreparePatchRequest,
-    ExportDatasetRequest,
+    PrepareGptSovitsRequest,
     PrepareKrkrDumpRequest,
+    PreparePatchRequest,
+    PreparePocRequest,
     ProjectManifest,
     ScriptDecompileResult,
     ToolRequirement,
@@ -34,7 +36,7 @@ from duolingal.services.project_service import ProjectService
 
 def create_app() -> FastAPI:
     if FastAPI is None:
-        raise RuntimeError("FastAPI 未安装。请先执行 `pip install -e .[api]`。")
+        raise RuntimeError("FastAPI is not installed. Run `pip install -e .[api]` first.")
 
     service = ProjectService()
     app = FastAPI(
@@ -146,6 +148,17 @@ def create_app() -> FastAPI:
                 request.voice_root,
                 speaker_name=request.speaker_name,
                 min_lines=request.min_lines,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/projects/prepare-gptsovits", response_model=GptSovitsPreparationResult)
+    def prepare_gptsovits(request: PrepareGptSovitsRequest) -> GptSovitsPreparationResult:
+        try:
+            return service.prepare_gptsovits(
+                request.project_root,
+                dataset_root=request.dataset_root,
+                speaker_name=request.speaker_name,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

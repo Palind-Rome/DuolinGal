@@ -13,6 +13,7 @@ DuolinGal is a local-first research toolchain for experimenting with English voi
 - Prepare an all-ages single-line voice replacement PoC workspace.
 - Prepare a `patch2.xp3` staging directory from a validated override tree.
 - Export per-speaker TTS training datasets from aligned lines and extracted voice files.
+- Prepare GPT-SoVITS training lists and English preview mappings from exported speaker datasets.
 
 ## Privacy Notes
 
@@ -43,6 +44,7 @@ python -m duolingal build-lines "<PROJECT_ROOT>"
 python -m duolingal prepare-poc "<PROJECT_ROOT>" "<VOICE_DIR>"
 python -m duolingal prepare-patch "<PROJECT_ROOT>" "<OVERRIDE_DIR>"
 python -m duolingal export-dataset "<PROJECT_ROOT>" "<VOICE_DIR>"
+python -m duolingal prepare-gptsovits "<PROJECT_ROOT>"
 ```
 
 If your environment still uses an offline extractor instead of KrkrDump, `preflight` may recommend `extract` before `decompile-scripts`.
@@ -64,7 +66,7 @@ python -m unittest discover -s tests
 - `FFmpeg`
   Planned for audio preprocessing.
 - `GPT-SoVITS`
-  Planned for voice cloning and synthesis.
+  Supported for training list preparation; actual model installation and training remain external.
 
 ## Local API
 
@@ -90,6 +92,7 @@ Available routes:
 - `POST /api/projects/prepare-poc`
 - `POST /api/projects/prepare-patch`
 - `POST /api/projects/export-dataset`
+- `POST /api/projects/prepare-gptsovits`
 
 ## Repository Layout
 
@@ -115,6 +118,7 @@ DuolinGal/
 - [Single-line PoC Guide](docs/single-line-poc.zh-CN.md)
 - [Patch Packaging Guide](docs/patch-packaging.zh-CN.md)
 - [Dataset Export Guide](docs/dataset-export.zh-CN.md)
+- [GPT-SoVITS Preparation Guide](docs/gptsovits-prep.zh-CN.md)
 
 ## Boundaries
 

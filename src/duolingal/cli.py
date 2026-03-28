@@ -72,6 +72,14 @@ def main(argv: list[str] | None = None) -> int:
     dataset_parser.add_argument("--speaker", help="Optional exact speaker_name filter.")
     dataset_parser.add_argument("--min-lines", type=int, default=1, help="Minimum line count required to keep a speaker.")
 
+    gptsovits_parser = subparsers.add_parser(
+        "prepare-gptsovits",
+        help="Prepare GPT-SoVITS training lists from exported speaker datasets.",
+    )
+    gptsovits_parser.add_argument("project_root", help="Initialized project workspace.")
+    gptsovits_parser.add_argument("--dataset-root", help="Optional existing tts-dataset root override.")
+    gptsovits_parser.add_argument("--speaker", help="Optional exact speaker_name filter.")
+
     args = parser.parse_args(argv)
     service = ProjectService()
 
@@ -158,6 +166,15 @@ def main(argv: list[str] | None = None) -> int:
             args.voice_root,
             speaker_name=args.speaker,
             min_lines=args.min_lines,
+        )
+        _emit_json(result.model_dump(mode="json", exclude_none=True))
+        return 0
+
+    if args.command == "prepare-gptsovits":
+        result = service.prepare_gptsovits(
+            args.project_root,
+            dataset_root=args.dataset_root,
+            speaker_name=args.speaker,
         )
         _emit_json(result.model_dump(mode="json", exclude_none=True))
         return 0

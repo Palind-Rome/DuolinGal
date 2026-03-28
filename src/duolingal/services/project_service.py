@@ -6,6 +6,7 @@ from duolingal.core.analyzer import analyze_game_directory
 from duolingal.core.dataset_export import export_tts_dataset
 from duolingal.core.decompiler import decompile_project_scripts
 from duolingal.core.extractor import extract_project_packages
+from duolingal.core.gptsovits_prep import prepare_gptsovits_inputs
 from duolingal.core.krkrdump import prepare_project_krkrdump
 from duolingal.core.parser import build_lines_for_project
 from duolingal.core.patching import prepare_patch_staging
@@ -15,10 +16,11 @@ from duolingal.core.tool_config import load_toolchain_config
 from duolingal.core.tooling import resolve_tooling_status
 from duolingal.core.workspace import initialize_project_workspace
 from duolingal.domain.models import (
+    DatasetExportResult,
     ExtractionResult,
     GameAnalysis,
+    GptSovitsPreparationResult,
     KrkrDumpPreparationResult,
-    DatasetExportResult,
     LinesBuildResult,
     PatchPreparationResult,
     PocPreparationResult,
@@ -141,4 +143,17 @@ class ProjectService:
             voice_root,
             speaker_name=speaker_name,
             min_lines=min_lines,
+        )
+
+    def prepare_gptsovits(
+        self,
+        project_root: str | Path,
+        dataset_root: str | Path | None = None,
+        *,
+        speaker_name: str | None = None,
+    ) -> GptSovitsPreparationResult:
+        return prepare_gptsovits_inputs(
+            project_root,
+            dataset_root=dataset_root,
+            speaker_name=speaker_name,
         )

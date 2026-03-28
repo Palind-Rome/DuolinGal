@@ -260,6 +260,12 @@ class ExportDatasetRequest(BaseModel):
     min_lines: int = 1
 
 
+class PrepareGptSovitsRequest(BaseModel):
+    project_root: str
+    dataset_root: str | None = None
+    speaker_name: str | None = None
+
+
 class RawScriptNode(BaseModel):
     scene_id: str
     order_index: int
@@ -329,4 +335,21 @@ class DatasetExportResult(BaseModel):
     speaker_count: int
     line_count: int
     speakers: list[SpeakerDatasetSummary] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class GptSovitsSpeakerResult(BaseModel):
+    speaker_name: str
+    output_dir: str
+    train_list_path: str
+    preview_targets_path: str
+    line_count: int
+
+
+class GptSovitsPreparationResult(BaseModel):
+    project_root: str
+    dataset_root: str
+    speaker_count: int
+    line_count: int
+    speakers: list[GptSovitsSpeakerResult] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
