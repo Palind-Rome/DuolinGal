@@ -83,6 +83,11 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
 - `tts-production/<PLAN_NAME>/production-state.json`
 - `tts-production/<PLAN_NAME>/production-status.txt`
 
+如果推理已经开始，角色自己的批次目录下还会继续出现：
+
+- `tts-dataset/<SPEAKER_NAME>/gptsovits/batches/<BATCH_NAME>/outputs/`
+- `tts-dataset/<SPEAKER_NAME>/gptsovits/batches/<BATCH_NAME>/skipped-invalid-tts.jsonl`（仅在跳过坏句时生成）
+
 ## 队列实际做了什么
 
 对每个角色，量产队列会顺序检查并执行：
@@ -128,6 +133,51 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
   现在会先走一层 ASCII 临时中转，再继续转换。
 - 也就是说，单条坏样本不应该再把整晚量产队列直接打断。
 
+## 被跳过的句子会怎样
+
+如果某句英文因为以下原因被跳过：
+
+- 它本身退化成纯标点
+- `/tts` 最终认定它不是有效文本
+
+那么量产队列的行为是：
+
+1. 不为这句生成新的英文 `.ogg`
+2. 不把这条语音文件放进总覆盖树
+3. 最终游戏里仍然播放原始日语语音
+
+也就是说，当前策略不是“坏句也强行英配”，而是：
+
+- **有可靠英文输出的句子才覆盖**
+- **纯符号/超弱语气句默认保留原音**
+
+这对《千恋万花》这类作品反而通常更稳，因为像 `……`、`!`、`……？` 这种语气音，本来就未必适合硬做英文 TTS。
+
+## ASCII 中转目录到底是什么
+
+Windows 下这一轮实际踩到过的情况是：
+
+- `soundfile/libsndfile` 读取日文路径失败
+- 回退到 `ffmpeg` 后，`ffmpeg` 也可能直接拒绝这个日文路径
+
+所以当前实现会在**目标输出目录附近**临时创建一个只含 ASCII 的中转目录，例如：
+
+```text
+tts-production/all-cast-v1/
+`-- .gptsovits-ogg-<random>/
+    |-- input.wav
+    `-- output.ogg
+```
+
+流程是：
+
+1. 把原始 `wav` 复制到这个 ASCII 临时目录
+2. 在这里完成 `wav -> ogg`
+3. 再把最终 `.ogg` 复制回正式覆盖树
+4. 转换结束后删除这个临时目录
+
+它只是一个**稳定性补丁**，不是新的长期产物目录。
+
 里面会写：
 
 - 当前总进度
@@ -141,6 +191,27 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
 - 最近完成的几个角色
 
 也就是说，它不是“一次性脚本”，而是一条可以分多晚推进的可恢复队列。
+
+## 第二天起来先看什么
+
+最推荐的顺序是：
+
+1. 看 `production-status.txt`
+   先判断停在哪个角色、哪个阶段、有没有 ETA。
+2. 看 `production-state.json`
+   确认已经完整完成了几个角色。
+3. 看当前角色批次目录：
+   - `outputs/` 里有多少 `wav`
+   - 是否出现 `skipped-invalid-tts.jsonl`
+4. 看 `game-ready/unencrypted/`
+   确认已经有多少条真正进了总覆盖树。
+
+如果终端停在某个角色的 `convert` 阶段，通常意味着：
+
+- 该角色的大部分推理已经完成
+- 但在 `wav -> ogg` 或总覆盖树写入这一层被打断
+
+这时只要修掉对应的转换问题，再重跑同一条 `run-production.ps1` 即可。
 
 ## 当前默认训练策略
 
