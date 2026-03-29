@@ -86,6 +86,8 @@ export-dataset
   中断后重新运行同一个 `run-production.ps1`，已完成角色会跳过。
 - 队列对坏样本有基础容错：
   英文如果退化成纯标点会尽量在批次准备阶段跳过；个别仍被 `/tts` 判为无效文本的行会被记录并跳过，不再整队中断。
+- Windows 下如果 `wav -> ogg` 因为日文路径导致 `soundfile` / `ffmpeg` 直接读取失败，
+  当前实现会先走 ASCII 临时中转再转换。
 - 队列运行时会持续更新：
   - `production-state.json`
   - `production-status.txt`

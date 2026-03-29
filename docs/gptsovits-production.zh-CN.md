@@ -124,6 +124,8 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
 - 如果仍然有个别句子在 GPT-SoVITS 内部进一步清洗后变成无效文本，生产队列会把它记到：
   - `batches/<BATCH_NAME>/skipped-invalid-tts.jsonl`
   然后跳过这单句，继续跑完整个角色和后续角色。
+- `wav -> ogg` 转换在 Windows 下如果碰到 `libsndfile` / `ffmpeg` 直接读取日文路径失败，
+  现在会先走一层 ASCII 临时中转，再继续转换。
 - 也就是说，单条坏样本不应该再把整晚量产队列直接打断。
 
 里面会写：

@@ -4,6 +4,8 @@ import csv
 import shutil
 import subprocess
 import sys
+import tempfile
+import uuid
 from pathlib import Path
 
 from duolingal.core.patching import prepare_patch_staging
@@ -235,53 +237,126 @@ def _pick_row(rows: list[dict[str, str]], *, source_output_name: str | None) -> 
 
 
 def _convert_wav_to_ogg(source_output_path: Path, destination_path: Path, *, target_sample_rate: int) -> None:
+    if _requires_ascii_staging(source_output_path, destination_path):
+        staging_root = _pick_ascii_staging_root(source_output_path, destination_path)
+        temp_root = staging_root / f".gptsovits-ogg-{uuid.uuid4().hex}"
+        temp_root.mkdir(parents=True, exist_ok=False)
+        try:
+            staged_source = temp_root / "input.wav"
+            staged_destination = temp_root / "output.ogg"
+            shutil.copy2(source_output_path, staged_source)
+            _convert_wav_to_ogg_impl(staged_source, staged_destination, target_sample_rate=target_sample_rate)
+            destination_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(staged_destination, destination_path)
+        finally:
+            shutil.rmtree(temp_root, ignore_errors=True)
+        return
+
+    _convert_wav_to_ogg_impl(source_output_path, destination_path, target_sample_rate=target_sample_rate)
+
+
+def _convert_wav_to_ogg_impl(source_output_path: Path, destination_path: Path, *, target_sample_rate: int) -> None:
+    ffmpeg_executable = _resolve_ffmpeg_executable()
     try:
         import numpy as np
         import soundfile as sf
         from scipy.signal import resample_poly
     except (ModuleNotFoundError, OSError) as exc:  # pragma: no cover - environment-specific dependency path.
-        ffmpeg_executable = _resolve_ffmpeg_executable()
-        if ffmpeg_executable is None:
-            raise ValueError(
-                "WAV->OGG conversion requires `soundfile` and `scipy`, or a reachable ffmpeg.exe."
-            ) from exc
-
-        destination_path.parent.mkdir(parents=True, exist_ok=True)
-        completed = subprocess.run(
-            [
-                str(ffmpeg_executable),
-                "-y",
-                "-i",
-                str(source_output_path),
-                "-ac",
-                "1",
-                "-ar",
-                str(target_sample_rate),
-                "-c:a",
-                "libvorbis",
-                str(destination_path),
-            ],
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+        _convert_wav_to_ogg_with_ffmpeg(
+            source_output_path,
+            destination_path,
+            target_sample_rate=target_sample_rate,
+            ffmpeg_executable=ffmpeg_executable,
         )
-        if completed.returncode != 0:
-            error_text = completed.stderr.strip() or completed.stdout.strip() or "Unknown ffmpeg failure."
-            raise ValueError(f"WAV->OGG conversion failed via ffmpeg: {error_text}")
         return
 
-    audio, sample_rate = sf.read(source_output_path, always_2d=False)
-    audio_array = np.asarray(audio, dtype=np.float32)
+    try:
+        audio, sample_rate = sf.read(source_output_path, always_2d=False)
+        audio_array = np.asarray(audio, dtype=np.float32)
 
-    if audio_array.ndim > 1:
-        audio_array = audio_array.mean(axis=1)
+        if audio_array.ndim > 1:
+            audio_array = audio_array.mean(axis=1)
 
-    if sample_rate != target_sample_rate:
-        audio_array = resample_poly(audio_array, target_sample_rate, sample_rate).astype(np.float32)
+        if sample_rate != target_sample_rate:
+            audio_array = resample_poly(audio_array, target_sample_rate, sample_rate).astype(np.float32)
+
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        sf.write(destination_path, audio_array, target_sample_rate, format="OGG", subtype="VORBIS")
+        return
+    except Exception as exc:
+        if ffmpeg_executable is None:
+            raise ValueError(
+                "WAV->OGG conversion failed through soundfile/scipy and no reachable ffmpeg.exe fallback was found."
+            ) from exc
+
+        _convert_wav_to_ogg_with_ffmpeg(
+            source_output_path,
+            destination_path,
+            target_sample_rate=target_sample_rate,
+            ffmpeg_executable=ffmpeg_executable,
+        )
+
+
+def _convert_wav_to_ogg_with_ffmpeg(
+    source_output_path: Path,
+    destination_path: Path,
+    *,
+    target_sample_rate: int,
+    ffmpeg_executable: Path | None,
+) -> None:
+    if ffmpeg_executable is None:
+        raise ValueError("WAV->OGG conversion requires `soundfile` and `scipy`, or a reachable ffmpeg.exe.")
 
     destination_path.parent.mkdir(parents=True, exist_ok=True)
-    sf.write(destination_path, audio_array, target_sample_rate, format="OGG", subtype="VORBIS")
+    completed = subprocess.run(
+        [
+            str(ffmpeg_executable),
+            "-y",
+            "-i",
+            str(source_output_path),
+            "-ac",
+            "1",
+            "-ar",
+            str(target_sample_rate),
+            "-c:a",
+            "libvorbis",
+            str(destination_path),
+        ],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if completed.returncode != 0:
+        error_text = completed.stderr.strip() or completed.stdout.strip() or "Unknown ffmpeg failure."
+        raise ValueError(f"WAV->OGG conversion failed via ffmpeg: {error_text}")
+
+
+def _requires_ascii_staging(*paths: Path) -> bool:
+    for path in paths:
+        try:
+            str(path).encode("ascii")
+        except UnicodeEncodeError:
+            return True
+    return False
+
+
+def _pick_ascii_staging_root(source_output_path: Path, destination_path: Path) -> Path:
+    candidates = [
+        destination_path.parent,
+        Path.cwd(),
+        Path(tempfile.gettempdir()),
+        source_output_path.parent,
+    ]
+    for candidate in candidates:
+        try:
+            str(candidate).encode("ascii")
+        except UnicodeEncodeError:
+            continue
+        candidate.mkdir(parents=True, exist_ok=True)
+        return candidate
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    return destination_path.parent
 
 
 def _resolve_ffmpeg_executable() -> Path | None:
