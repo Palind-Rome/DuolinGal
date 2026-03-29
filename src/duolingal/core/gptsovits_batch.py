@@ -221,6 +221,9 @@ def _find_speaker_preview(dataset_root: Path, speaker_name: str) -> tuple[Path, 
 
 def _pick_prompt_row(rows: list[dict[str, str]], prompt_line_id: str | None) -> dict[str, str]:
     if prompt_line_id is None:
+        for row in rows:
+            if _is_valid_prompt_row(row):
+                return row
         return rows[0]
 
     for row in rows:
@@ -248,6 +251,17 @@ def _select_prompt_row(
         return anchor_row, "anchor-fallback"
 
     return target_row, "self"
+
+
+def _is_valid_prompt_row(row: dict[str, str]) -> bool:
+    if _looks_weak_as_prompt(row.get("jp_text") or ""):
+        return False
+
+    prompt_duration = _probe_audio_duration_seconds(row.get("audio_path") or "")
+    if prompt_duration is None:
+        return False
+
+    return _REFERENCE_MIN_SECONDS <= prompt_duration <= _REFERENCE_MAX_SECONDS
 
 
 def _looks_weak_as_prompt(text: str) -> bool:
