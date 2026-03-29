@@ -407,11 +407,28 @@ def run_gptsovits_production(production_root: str | Path) -> GptSovitsProduction
                 last_event=f"Converting synthesized WAV files for {speaker_name}.",
                 status_path=status_path,
             )
+            convert_started_at = time.time()
+
+            def _convert_progress_update(progress: dict[str, Any]) -> None:
+                _write_state(
+                    state_path,
+                    completed_speakers,
+                    total_speakers=total_speakers,
+                    current_speaker=speaker_name,
+                    current_stage="convert",
+                    last_event=f"Converting synthesized WAV files for {speaker_name}.",
+                    status_path=status_path,
+                    stage_progress=progress,
+                )
+
             converted_count = _merge_batch_outputs_into_override(
                 Path(batch_result.batch_dir),
                 combined_override_root,
                 target_sample_rate=int(plan["target_sample_rate"]),
                 skipped_output_names=skipped_output_names,
+                progress_callback=_convert_progress_update,
+                started_at=convert_started_at,
+                queue_prefix=f"[queue] [{speaker_index}/{total_speakers}]",
             )
         finally:
             if speaker_api_process is not None:
@@ -1001,6 +1018,9 @@ def _merge_batch_outputs_into_override(
     *,
     target_sample_rate: int,
     skipped_output_names: set[str] | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    started_at: float | None = None,
+    queue_prefix: str = "[queue]",
 ) -> int:
     requests_path = batch_dir / "requests.csv"
     outputs_dir = batch_dir / "outputs"
@@ -1008,15 +1028,19 @@ def _merge_batch_outputs_into_override(
     with requests_path.open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
 
+    convertible_rows = [
+        row
+        for row in rows
+        if (row.get("output_file_name") or "").strip()
+        and (row.get("voice_file") or "").strip()
+        and (row.get("output_file_name") or "").strip() not in skipped
+    ]
+    total_rows = len(convertible_rows)
+    started = started_at if started_at is not None else time.time()
     converted = 0
-    for row in rows:
+    for index, row in enumerate(convertible_rows, start=1):
         source_output_name = (row.get("output_file_name") or "").strip()
         target_voice_file = (row.get("voice_file") or "").strip()
-        if not source_output_name or not target_voice_file:
-            continue
-        if source_output_name in skipped:
-            continue
-
         source_output_path = outputs_dir / source_output_name
         if not source_output_path.exists():
             raise ValueError(f"Synthesized WAV output does not exist: {source_output_path}")
@@ -1024,6 +1048,18 @@ def _merge_batch_outputs_into_override(
         destination_path = combined_override_root / target_voice_file
         _convert_wav_to_ogg(source_output_path, destination_path, target_sample_rate=target_sample_rate)
         converted += 1
+        stage_progress = _build_stage_progress(
+            completed_units=index,
+            total_units=total_rows,
+            started_at=started,
+            current_item=target_voice_file,
+        )
+        if progress_callback is not None and (index == 1 or index % 5 == 0 or index == total_rows):
+            progress_callback(stage_progress)
+        if index == 1 or index % 25 == 0 or index == total_rows:
+            print(
+                f"{queue_prefix} Stage convert progress -> {index}/{total_rows} ({stage_progress['percent_text']}) | elapsed {_format_duration(stage_progress['elapsed_seconds'])} | eta {_format_duration(stage_progress['eta_seconds'])}"
+            )
 
     return converted
 

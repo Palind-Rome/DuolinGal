@@ -257,11 +257,7 @@ def _convert_wav_to_ogg(source_output_path: Path, destination_path: Path, *, tar
 
 def _convert_wav_to_ogg_impl(source_output_path: Path, destination_path: Path, *, target_sample_rate: int) -> None:
     ffmpeg_executable = _resolve_ffmpeg_executable()
-    try:
-        import numpy as np
-        import soundfile as sf
-        from scipy.signal import resample_poly
-    except (ModuleNotFoundError, OSError) as exc:  # pragma: no cover - environment-specific dependency path.
+    if ffmpeg_executable is not None:
         _convert_wav_to_ogg_with_ffmpeg(
             source_output_path,
             destination_path,
@@ -269,6 +265,15 @@ def _convert_wav_to_ogg_impl(source_output_path: Path, destination_path: Path, *
             ffmpeg_executable=ffmpeg_executable,
         )
         return
+
+    try:
+        import numpy as np
+        import soundfile as sf
+        from scipy.signal import resample_poly
+    except (ModuleNotFoundError, OSError) as exc:  # pragma: no cover - environment-specific dependency path.
+        raise ValueError(
+            "WAV->OGG conversion requires a reachable ffmpeg.exe, or soundfile+scipy as a fallback."
+        ) from exc
 
     try:
         audio, sample_rate = sf.read(source_output_path, always_2d=False)
@@ -284,17 +289,7 @@ def _convert_wav_to_ogg_impl(source_output_path: Path, destination_path: Path, *
         sf.write(destination_path, audio_array, target_sample_rate, format="OGG", subtype="VORBIS")
         return
     except Exception as exc:
-        if ffmpeg_executable is None:
-            raise ValueError(
-                "WAV->OGG conversion failed through soundfile/scipy and no reachable ffmpeg.exe fallback was found."
-            ) from exc
-
-        _convert_wav_to_ogg_with_ffmpeg(
-            source_output_path,
-            destination_path,
-            target_sample_rate=target_sample_rate,
-            ffmpeg_executable=ffmpeg_executable,
-        )
+        raise ValueError("WAV->OGG conversion failed via soundfile/scipy fallback.") from exc
 
 
 def _convert_wav_to_ogg_with_ffmpeg(
