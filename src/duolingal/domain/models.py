@@ -461,6 +461,7 @@ class GptSovitsProductionSpeakerPlan(BaseModel):
     line_count: int
     preview_count: int
     batch_limit: int
+    prompt_line_id: str | None = None
     experiment_name: str
     training_root: str
     prepare_all_script_path: str

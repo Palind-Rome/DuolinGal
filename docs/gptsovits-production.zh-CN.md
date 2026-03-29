@@ -68,6 +68,38 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
 - `--sovits-epochs`
   默认 `6`。这是当前基于《千恋万花》丛雨实测得到的更实用停点。
 
+## 项目本地 overrides
+
+如果某个项目里你已经知道：
+
+- 某些角色应当使用固定锚点
+- 某些角色暂时不该进量产队列
+
+可以在项目根目录下放：
+
+- `tts-production/production-overrides.json`
+
+格式示例：
+
+```json
+{
+  "exclude_speakers": ["白狛"],
+  "speaker_prompt_line_ids": {
+    "レナ": "006・レナ登場ver1.03.ks-0436",
+    "廉太郎": "001・アーサー王ver1.07.ks-0346"
+  }
+}
+```
+
+说明：
+
+- `exclude_speakers`
+  这些角色会在量产队列里被直接跳过
+- `speaker_prompt_line_ids`
+  这些角色在批量推理时会优先使用指定 `line_id` 作为锚点参考句
+
+这个文件是**项目本地配置**，适合记录像《千恋万花》这种作品里经过人工试听确认的 anchor 选择。
+
 ## 生成结果
 
 `prepare-gptsovits-production` 至少会生成：
@@ -152,6 +184,25 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
 - **纯符号/超弱语气句默认保留原音**
 
 这对《千恋万花》这类作品反而通常更稳，因为像 `……`、`!`、`……？` 这种语气音，本来就未必适合硬做英文 TTS。
+
+## 关于“纯语气句保留原音”的当前策略
+
+当前仓库已经支持：
+
+- 纯标点英文在批次准备阶段直接跳过
+
+但**更强的“弱句/纯语气句自动剔除”**，当前仍建议放在量产流程的最后做人工或半自动收尾，而不是现在就前置到整条夜跑队列里。
+
+原因是：
+
+- 前置规则如果太激进，容易误伤正常短句
+- 而在回灌阶段再删除这些 `.ogg`，游戏会自然回退到原始日语语音
+
+也就是说，当前更推荐：
+
+1. 先把训练与批量推理跑完
+2. 再对纯语气、叫声、拟声句做最终清理
+3. 没被保留到补丁覆盖树里的句子，会继续播放原音
 
 ## ASCII 中转目录到底是什么
 

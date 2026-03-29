@@ -103,6 +103,57 @@ class GptSovitsProductionPreparationTests(unittest.TestCase):
             self.assertEqual(payload["sync_game_root"], True)
             self.assertTrue(Path(payload["run_script_path"]).exists())
 
+    def test_prepare_gptsovits_production_applies_overrides(self) -> None:
+        with temporary_workspace() as temp_dir:
+            game_root = temp_dir / "game"
+            projects_root = temp_dir / "projects"
+            gpt_root = temp_dir / "tools" / "GPT-SoVITS"
+
+            for name in ("voice.xp3", "scn.xp3", "patch.xp3", "KAGParserEx.dll", "psbfile.dll", "senrenbanka.exe"):
+                touch(game_root / name)
+
+            self._create_fake_gpt_root(gpt_root)
+
+            analysis = analyze_game_directory(game_root)
+            initialize_project_workspace(analysis, project_id="senren-production-overrides", projects_root=projects_root)
+            project_root = projects_root / "senren-production-overrides"
+
+            self._create_speaker_dataset(project_root, "レナ", "len001_001.ogg", "「こんにちは」", "Hello.")
+            self._create_speaker_dataset(project_root, "廉太郎", "ren001_001.ogg", "「よう」", "Yo.")
+            self._create_speaker_dataset(project_root, "白狛", "srk001_001.ogg", "「グルル」", "Grr.")
+
+            overrides_dir = project_root / "tts-production"
+            overrides_dir.mkdir(parents=True, exist_ok=True)
+            (overrides_dir / "production-overrides.json").write_text(
+                json.dumps(
+                    {
+                        "exclude_speakers": ["白狛"],
+                        "speaker_prompt_line_ids": {
+                            "レナ": "006・レナ登場ver1.03.ks-0436",
+                            "廉太郎": "001・アーサー王ver1.07.ks-0346",
+                        },
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+                newline="\n",
+            )
+
+            result = prepare_gptsovits_production(
+                project_root,
+                gpt_sovits_root=gpt_root,
+                inference_limit=5,
+            )
+
+            queue_payload = json.loads(Path(result.queue_path).read_text(encoding="utf-8"))
+            speaker_names = [item["speaker_name"] for item in queue_payload["speakers"]]
+            self.assertEqual(speaker_names, ["レナ", "廉太郎"])
+
+            prompt_line_ids = {item["speaker_name"]: item.get("prompt_line_id") for item in queue_payload["speakers"]}
+            self.assertEqual(prompt_line_ids["レナ"], "006・レナ登場ver1.03.ks-0436")
+            self.assertEqual(prompt_line_ids["廉太郎"], "001・アーサー王ver1.07.ks-0346")
+
     def test_synthesize_batch_skips_invalid_text_http_errors(self) -> None:
         with temporary_workspace() as temp_dir:
             batch_dir = temp_dir / "batch"

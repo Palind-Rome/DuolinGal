@@ -95,6 +95,8 @@ export-dataset
   当前 `epoch/batch` 或已完成句数、阶段百分比、已用时、预计剩余时间。
 - 被量产队列跳过的纯符号语气句不会进入补丁覆盖树；
   这类句子在最终游戏里会继续播放原始日语语音。
+- 更强的“纯语气/弱句保留原音”规则当前建议放在最终收尾阶段；
+  因为最后删掉这些 `.ogg` 后，游戏会自然回退到原始日语语音。
 
 If your environment still uses an offline extractor instead of KrkrDump, `preflight` may recommend `extract` before `decompile-scripts`.
 

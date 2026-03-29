@@ -32,6 +32,7 @@ _INVALID_TTS_DETAIL_MARKERS = ("请输入有效文本", "invalid text")
 _TRAINING_STARTED_RE = re.compile(r"Training started: epochs=(\d+), batches_per_epoch=(\d+)")
 _EPOCH_STARTED_RE = re.compile(r"Epoch (\d+)/(\d+) started")
 _EPOCH_BATCH_RE = re.compile(r"Epoch (\d+) \| batch (\d+)/(\d+)")
+_PRODUCTION_OVERRIDES_FILE = "tts-production/production-overrides.json"
 
 
 def prepare_gptsovits_production(
@@ -61,12 +62,16 @@ def prepare_gptsovits_production(
     dataset_root = resolved_project_root / "tts-dataset"
     if not dataset_root.exists():
         raise ValueError(f"TTS dataset root does not exist: {dataset_root}")
+    overrides = _load_production_overrides(resolved_project_root)
 
     selected_speakers = _select_speakers(
         dataset_root,
         requested_speakers=speakers or [],
         min_lines=min_lines,
     )
+    excluded_speakers = overrides["exclude_speakers"]
+    if excluded_speakers:
+        selected_speakers = [speaker for speaker in selected_speakers if speaker["speaker_name"] not in excluded_speakers]
     if not selected_speakers:
         raise ValueError("No speaker datasets matched the requested production criteria.")
 
@@ -103,6 +108,7 @@ def prepare_gptsovits_production(
                 line_count=speaker["line_count"],
                 preview_count=speaker["preview_count"],
                 batch_limit=batch_limit,
+                prompt_line_id=overrides["speaker_prompt_line_ids"].get(speaker["speaker_name"]),
                 experiment_name=training_result.experiment_name,
                 training_root=training_result.training_root,
                 prepare_all_script_path=training_result.prepare_all_script_path,
@@ -183,6 +189,7 @@ def run_gptsovits_production(production_root: str | Path) -> GptSovitsProduction
     combined_override_root.mkdir(parents=True, exist_ok=True)
     logs_dir = Path(plan["logs_dir"]).resolve()
     logs_dir.mkdir(parents=True, exist_ok=True)
+    overrides = _load_production_overrides(project_root)
     state_path = resolved_production_root / "production-state.json"
     status_path = resolved_production_root / "production-status.txt"
     total_speakers = len(plan["speakers"])
@@ -211,6 +218,9 @@ def run_gptsovits_production(production_root: str | Path) -> GptSovitsProduction
 
     for speaker_index, speaker_plan in enumerate(plan["speakers"], start=1):
         speaker_name = str(speaker_plan["speaker_name"])
+        if speaker_name in overrides["exclude_speakers"]:
+            print(f"[queue] [{speaker_index}/{total_speakers}] Skip excluded speaker: {speaker_name}")
+            continue
         if speaker_name in completed_names:
             print(f"[queue] [{speaker_index}/{total_speakers}] Skip completed speaker: {speaker_name}")
             continue
@@ -341,6 +351,7 @@ def run_gptsovits_production(production_root: str | Path) -> GptSovitsProduction
             project_root,
             speaker_name,
             limit=int(speaker_plan["batch_limit"]),
+            prompt_line_id=speaker_plan.get("prompt_line_id") or overrides["speaker_prompt_line_ids"].get(speaker_name),
             reference_mode=plan["reference_mode"],
         )
 
@@ -556,6 +567,31 @@ def _select_speakers(dataset_root: Path, *, requested_speakers: list[str], min_l
 
     selected.sort(key=lambda item: (-int(item["line_count"]), item["speaker_name"]))
     return selected
+
+
+def _load_production_overrides(project_root: Path) -> dict[str, Any]:
+    overrides_path = project_root / _PRODUCTION_OVERRIDES_FILE
+    if not overrides_path.exists():
+        return {
+            "exclude_speakers": set(),
+            "speaker_prompt_line_ids": {},
+        }
+
+    payload = json.loads(overrides_path.read_text(encoding="utf-8"))
+    excluded_speakers = {
+        str(name).strip()
+        for name in payload.get("exclude_speakers", [])
+        if str(name).strip()
+    }
+    speaker_prompt_line_ids = {
+        str(speaker).strip(): str(line_id).strip()
+        for speaker, line_id in payload.get("speaker_prompt_line_ids", {}).items()
+        if str(speaker).strip() and str(line_id).strip()
+    }
+    return {
+        "exclude_speakers": excluded_speakers,
+        "speaker_prompt_line_ids": speaker_prompt_line_ids,
+    }
 
 
 def _derive_production_name(selected_speakers: list[dict[str, Any]], *, explicit_speakers: list[str]) -> str:
