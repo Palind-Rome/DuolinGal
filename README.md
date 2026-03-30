@@ -1,20 +1,44 @@
 <div align="center">
+<img src="./image/Logo.png" alt="DuolinGal" width="400" /> 
 
-<img src="./image/Logo.png" alt="DuolinGal" width="300" /> 
+**DuolinGal：面向 KiriKiri Z galgame 的跨语言语音转换工作流**
 
-# DuolinGal
-
-**面向 KiriKiri Z galgame 的本地优先语音研究工具链**
+让你玩 galgame 时角色语音变为英语或中文！
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/Palind-Rome/DuolinGal?style=social)](https://github.com/Palind-Rome/DuolinGal)
 
-[快速开始](#快速开始) · [推荐工作流](#当前推荐工作流) · [文档导航](#文档导航) · [English README](docs/README.en.md) · [本地 API](#本地-api) · [仓库结构](#仓库结构)
+[English README](docs/README.en.md) · [快速开始](#快速开始) · [推荐工作流](#当前推荐工作流) · [文档导航](#文档导航) · [本地 API](#本地-api) · [仓库结构](#仓库结构)
 
 </div>
 
 ---
+
+# TL;DR
+
+DuolinGal 是一套面向 KiriKiri Z galgame 的本地优先研究工具链。这套工作流可以让你玩上英语或中文配音的 galgame。
+
+这套工作流已经在《千恋＊万花》上跑通了从资源提取、台词对齐、角色数据集导出，到 GPT-SoVITS 训练、批量推理、游戏补丁回灌的全流程。
+
+我将这套工作流生成的《千恋＊万花》英文配音补丁已经发布在了 [GitHub Releases](https://github.com/Palind-Rome/DuolinGal/releases)。下载并放入游戏目录即可玩。
+
+工作流里主要将如下高质量的开源工具进行了集成，如果你觉得这套工作流好用，就去给它们的原仓库点个 star 吧：
+
+- [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS)
+  负责角色语音克隆、单角色训练、多角色推理，是整条语音生成链的核心。
+- [KrkrDump](https://github.com/crskycode/KrkrDump)
+  负责为 KiriKiri Z 游戏准备运行时 dump 配置，帮助提取脚本与资源线索。
+- [FreeMote](https://github.com/UlyssesWu/FreeMote)
+  负责反编译和重建 `.scn`、`.psb`、`.psb.m` 等 KiriKiri 常见资源。
+- [KirikiriTools](https://github.com/arcusmaximus/KirikiriTools)
+  负责 `unencrypted/` 覆盖验证和 `patch.xp3` 打包相关工作。
+- [KrkrExtract](https://github.com/xmoezzz/KrkrExtract)
+  可选使用，用于离线解包或重打包 XP3 资源。
+- [FFmpeg](https://ffmpeg.org/)
+  负责音频裁切、重采样、格式转换和 `wav -> ogg` 转码。它不是 GitHub 仓库型项目，但同样是这条工作流的重要基础设施。
+
+# DuolinGal
 
 DuolinGal 是一套面向 KiriKiri Z galgame 的本地优先研究工具链。  
 它把“资源提取 -> 台词对齐 -> 角色数据集导出 -> GPT-SoVITS 训练/量产 -> 游戏补丁回灌”串成了一条可复现的工程工作流，适合做：
