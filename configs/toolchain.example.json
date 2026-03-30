@@ -14,7 +14,7 @@
     "args": [
       "-o",
       "{output}",
-      "{input}",
+      "{input}"
     ]
   },
   "kirikiritools": {
