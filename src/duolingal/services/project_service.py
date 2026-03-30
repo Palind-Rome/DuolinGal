@@ -4,6 +4,7 @@ from pathlib import Path
 
 from duolingal.core.analyzer import analyze_game_directory
 from duolingal.core.dataset_export import export_tts_dataset
+from duolingal.core.final_cleanup import prepare_final_cleanup as prepare_final_cleanup_workspace
 from duolingal.core.gptsovits_batch import prepare_gptsovits_batch as prepare_gptsovits_batch_inputs
 from duolingal.core.gptsovits_production import (
     prepare_gptsovits_production as prepare_gptsovits_production_queue,
@@ -29,6 +30,7 @@ from duolingal.domain.models import (
     DatasetExportResult,
     GptSovitsBatchResult,
     ExtractionResult,
+    FinalCleanupPreparationResult,
     GameAnalysis,
     GptSovitsPreparationResult,
     GptSovitsProductionPreparationResult,
@@ -289,3 +291,16 @@ class ProjectService:
 
     def run_gptsovits_production(self, production_root: str | Path) -> GptSovitsProductionRunResult:
         return run_gptsovits_production_queue(production_root)
+
+    def prepare_final_cleanup(
+        self,
+        project_root: str | Path,
+        *,
+        production_name: str = "all-cast-v1",
+        cleanup_name: str = "final-cleanup-v1",
+    ) -> FinalCleanupPreparationResult:
+        return prepare_final_cleanup_workspace(
+            project_root,
+            production_name=production_name,
+            cleanup_name=cleanup_name,
+        )

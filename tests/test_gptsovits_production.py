@@ -15,6 +15,7 @@ ensure_src_on_path()
 
 from duolingal.cli import main
 from duolingal.core.analyzer import analyze_game_directory
+from duolingal.core.final_cleanup import prepare_final_cleanup
 from duolingal.core.gptsovits_production import _synthesize_batch, prepare_gptsovits_production
 from duolingal.core.workspace import initialize_project_workspace
 
@@ -211,6 +212,117 @@ class GptSovitsProductionPreparationTests(unittest.TestCase):
             self.assertFalse((output_dir / "skip.wav").exists())
             skipped_log = (batch_dir / "skipped-invalid-tts.jsonl").read_text(encoding="utf-8")
             self.assertIn("skip.wav", skipped_log)
+
+    def test_prepare_final_cleanup_creates_safe_copy_and_review_sheet(self) -> None:
+        with temporary_workspace() as temp_dir:
+            game_root = temp_dir / "game"
+            projects_root = temp_dir / "projects"
+
+            for name in ("voice.xp3", "scn.xp3", "patch.xp3", "KAGParserEx.dll", "psbfile.dll", "senrenbanka.exe"):
+                touch(game_root / name)
+
+            analysis = analyze_game_directory(game_root)
+            initialize_project_workspace(analysis, project_id="senren-final-cleanup", projects_root=projects_root)
+            project_root = projects_root / "senren-final-cleanup"
+
+            production_root = project_root / "tts-production" / "all-cast-v1"
+            override_root = production_root / "game-ready" / "unencrypted"
+            override_root.mkdir(parents=True, exist_ok=True)
+            (override_root / "weak001.ogg").write_bytes(b"weak")
+            (override_root / "scene001_001.ogg").write_bytes(b"ok")
+            temp_artifact = override_root / ".gptsovits-ogg-temp"
+            temp_artifact.mkdir()
+            (temp_artifact / "input.wav").write_bytes(b"temp")
+
+            batch_dir = project_root / "tts-dataset" / "芳乃" / "gptsovits" / "batches" / "first-2-en"
+            batch_dir.mkdir(parents=True, exist_ok=True)
+            with (batch_dir / "requests.csv").open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(
+                    handle,
+                    fieldnames=[
+                        "order_index",
+                        "line_id",
+                        "voice_file",
+                        "source_audio_path",
+                        "jp_text",
+                        "en_text",
+                        "prompt_line_id",
+                        "prompt_audio_path",
+                        "prompt_text",
+                        "prompt_source",
+                        "output_file_name",
+                        "output_path",
+                    ],
+                )
+                writer.writeheader()
+                writer.writerow(
+                    {
+                        "order_index": "1",
+                        "line_id": "scene001-0001",
+                        "voice_file": "weak001.ogg",
+                        "source_audio_path": "",
+                        "jp_text": "「ふん」",
+                        "en_text": "Hmph.",
+                        "prompt_line_id": "scene001-0001",
+                        "prompt_audio_path": "",
+                        "prompt_text": "「ふん」",
+                        "prompt_source": "self",
+                        "output_file_name": "weak001.wav",
+                        "output_path": "",
+                    }
+                )
+                writer.writerow(
+                    {
+                        "order_index": "2",
+                        "line_id": "scene001-0002",
+                        "voice_file": "scene001_001.ogg",
+                        "source_audio_path": "",
+                        "jp_text": "「おはよう」",
+                        "en_text": "Good morning.",
+                        "prompt_line_id": "scene001-0002",
+                        "prompt_audio_path": "",
+                        "prompt_text": "「おはよう」",
+                        "prompt_source": "self",
+                        "output_file_name": "scene001_001.wav",
+                        "output_path": "",
+                    }
+                )
+
+            state_payload = {
+                "completed_speakers": [
+                    {
+                        "speaker_name": "芳乃",
+                        "experiment_name": "yos-v2",
+                        "batch_dir": str(batch_dir),
+                        "generated_count": 2,
+                        "converted_count": 2,
+                        "gpt_weight_path": "gpt.ckpt",
+                        "sovits_weight_path": "sovits.pth",
+                    }
+                ]
+            }
+            (production_root / "production-state.json").write_text(
+                json.dumps(state_payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+                newline="\n",
+            )
+
+            result = prepare_final_cleanup(project_root)
+
+            cleanup_root = Path(result.cleanup_root)
+            copied_root = cleanup_root / "source" / "unencrypted"
+            self.assertTrue((copied_root / "weak001.ogg").exists())
+            self.assertTrue((copied_root / "scene001_001.ogg").exists())
+            self.assertFalse((copied_root / ".gptsovits-ogg-temp").exists())
+
+            review_sheet = (cleanup_root / "review" / "cleanup-review.csv").read_text(encoding="utf-8")
+            self.assertIn("weak001.ogg", review_sheet)
+            self.assertIn("english_interjection_only", review_sheet)
+            self.assertIn("jp_short_reaction", review_sheet)
+            self.assertNotIn("scene001_001.ogg,Good morning.", review_sheet)
+
+            apply_script = (cleanup_root / "scripts" / "apply-reviewed-removals.ps1").read_text(encoding="utf-8")
+            self.assertIn("cleanup-review.csv", apply_script)
 
     def _create_speaker_dataset(
         self,

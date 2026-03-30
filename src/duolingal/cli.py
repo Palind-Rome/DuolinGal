@@ -155,6 +155,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     gptsovits_production_run_parser.add_argument("production_root", help="Prepared tts-production/<plan> directory.")
 
+    final_cleanup_parser = subparsers.add_parser(
+        "prepare-final-cleanup",
+        help="Create a safe cleanup copy and review sheets for final weak-utterance pruning.",
+    )
+    final_cleanup_parser.add_argument("project_root", help="Initialized project workspace.")
+    final_cleanup_parser.add_argument("--production-name", default="all-cast-v1", help="Which prepared production plan to copy from.")
+    final_cleanup_parser.add_argument("--cleanup-name", default="final-cleanup-v1", help="Name of the generated cleanup workspace.")
+
     args = parser.parse_args(argv)
     service = ProjectService()
 
@@ -325,6 +333,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "run-gptsovits-production":
         result = service.run_gptsovits_production(args.production_root)
+        _emit_json(result.model_dump(mode="json", exclude_none=True))
+        return 0
+
+    if args.command == "prepare-final-cleanup":
+        result = service.prepare_final_cleanup(
+            args.project_root,
+            production_name=args.production_name,
+            cleanup_name=args.cleanup_name,
+        )
         _emit_json(result.model_dump(mode="json", exclude_none=True))
         return 0
 

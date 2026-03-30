@@ -313,6 +313,12 @@ class RunGptSovitsProductionRequest(BaseModel):
     production_root: str
 
 
+class PrepareFinalCleanupRequest(BaseModel):
+    project_root: str
+    production_name: str = "all-cast-v1"
+    cleanup_name: str = "final-cleanup-v1"
+
+
 class RawScriptNode(BaseModel):
     scene_id: str
     order_index: int
@@ -505,6 +511,32 @@ class GptSovitsProductionRunResult(BaseModel):
     speaker_count: int
     completed_speakers: list[GptSovitsProductionRunSpeakerStatus] = Field(default_factory=list)
     synced_game_root: str | None = None
+    notes: list[str] = Field(default_factory=list)
+
+
+class FinalCleanupCandidateItem(BaseModel):
+    speaker_name: str
+    line_id: str
+    voice_file: str
+    en_text: str
+    jp_text: str
+    reason_codes: list[str] = Field(default_factory=list)
+    suggested_action: Literal["review", "keep"] = "review"
+
+
+class FinalCleanupPreparationResult(BaseModel):
+    project_root: str
+    production_root: str
+    cleanup_root: str
+    source_override_root: str
+    review_candidates_path: str
+    review_sheet_path: str
+    apply_script_path: str
+    rebuild_patch_script_path: str
+    readme_path: str
+    copied_file_count: int
+    candidate_count: int
+    candidates: list[FinalCleanupCandidateItem] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
 
 
