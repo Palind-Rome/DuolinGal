@@ -1,40 +1,75 @@
 # DuolinGal
 
-DuolinGal is a local-first research toolchain for experimenting with English voice workflows in galgames. The current goal is narrow on purpose: prove the extraction, decompile, and line-building pipeline on KiriKiri Z titles such as Senren Banka before touching TTS, patching, or UI polish.
+DuolinGal 是一套面向 KiriKiri Z galgame 的本地优先研究工具链。  
+当前项目重点已经从“能不能做”推进到了“怎样稳定地做出整作英文配音补丁”，并且已经在《千恋＊万花》上跑通：
 
-## Current Scope
+- 资源提取与脚本反编译
+- 台词与语音对齐
+- 角色数据集导出
+- GPT-SoVITS 单角色训练
+- 多角色夜间顺序量产
+- 批量 `wav -> ogg` 回灌
+- 游戏内 `unencrypted/` 覆盖与 `patch-build` 重建
 
-- Analyze a game directory and identify known KiriKiri Z signatures.
-- Initialize a reproducible workspace.
-- Prepare a KrkrDump runtime dump config for script assets.
-- Optionally run an offline XP3 extraction flow when a compatible CLI exists.
-- Decompile SCN or PSB assets into JSON with FreeMote.
-- Build `dataset/lines.csv` and `dataset/script_nodes.jsonl`.
-- Prepare an all-ages single-line voice replacement PoC workspace.
-- Prepare a `patch2.xp3` staging directory from a validated override tree.
-- Export per-speaker TTS training datasets from aligned lines and extracted voice files.
-- Prepare GPT-SoVITS training lists and English preview mappings from exported speaker datasets.
-- Prepare small GPT-SoVITS English synthesis batches for a chosen speaker.
-- Prepare a speaker-specific GPT-SoVITS training workspace that calls the official dataset and training scripts.
-- Prepare and run a resumable multi-speaker GPT-SoVITS production queue for overnight training, inference, and reinjection staging.
+## 语言入口
 
-## Privacy Notes
+- 中文：当前页面
+- English: [docs/README.en.md](docs/README.en.md)
 
-- Keep real game paths, tool paths, and usernames in `configs/toolchain.local.json` only.
-- `configs/toolchain.local.json`, `.env`, `.venv/`, and `workspace/projects/` are ignored by Git.
-- Documentation uses placeholders such as `<GAME_DIR>` and `<PROJECT_ROOT>` on purpose.
+## 项目目标
 
-## Quick Start
+当前版本的 DuolinGal 不是一个“一键完成商业补丁”的成品软件，而是一条已经工程化的研究工作流。它解决的核心问题是：
 
-1. Install the project:
+1. 把 galgame 里的文本、语音、角色拆成可训练数据
+2. 让 GPT-SoVITS 在 Windows 单卡环境下稳定训练与批量推理
+3. 把生成结果重新整理成游戏可直接覆盖的语音树
+4. 为最终的英文语音补丁打包做准备
+
+## 当前能力
+
+- 分析游戏目录，识别 KiriKiri Z 常见特征
+- 初始化可复现的项目工作区
+- 准备 KrkrDump 运行配置
+- 调用外部工具反编译 `.scn` / `.psb`
+- 构建 `lines.csv` 与脚本节点索引
+- 导出角色级 TTS 训练数据集
+- 生成 GPT-SoVITS 训练清单与英文预览
+- 生成单角色 GPT-SoVITS 训练工作区
+- 生成并执行可恢复的多角色 GPT-SoVITS 量产队列
+- 批量把生成语音转成游戏覆盖用 `.ogg`
+- 重建项目级 `patch-build`
+
+## 隐私与路径约定
+
+- 真实游戏路径、工具路径、用户名只应保存在本地配置中，例如：
+  - `configs/toolchain.local.json`
+- `workspace/projects/`、`.env`、`.venv/` 等内容不会提交到 Git
+- 仓库文档默认只使用占位符路径，例如：
+  - `<GAME_DIR>`
+  - `<PROJECT_ROOT>`
+  - `<GPT_SOVITS_ROOT>`
+
+## 快速开始
+
+### 1. 安装仓库
 
 ```powershell
 pip install -e .
 ```
 
-2. Copy [configs/toolchain.example.json](configs/toolchain.example.json) to `configs/toolchain.local.json` and edit only the local copy.
+### 2. 准备本地配置
 
-3. Run the minimum pipeline:
+复制：
+
+- [configs/toolchain.example.json](configs/toolchain.example.json)
+
+为：
+
+- `configs/toolchain.local.json`
+
+然后只编辑本地副本。
+
+### 3. 跑最小项目流水线
 
 ```powershell
 $env:PYTHONPATH='src'
@@ -44,21 +79,48 @@ python -m duolingal preflight "<PROJECT_ROOT>" --config configs/toolchain.local.
 python -m duolingal prepare-krkrdump "<PROJECT_ROOT>" --config configs/toolchain.local.json
 python -m duolingal decompile-scripts "<PROJECT_ROOT>" --config configs/toolchain.local.json
 python -m duolingal build-lines "<PROJECT_ROOT>"
-python -m duolingal prepare-poc "<PROJECT_ROOT>" "<VOICE_DIR>"
-python -m duolingal prepare-patch "<PROJECT_ROOT>" "<OVERRIDE_DIR>"
 python -m duolingal export-dataset "<PROJECT_ROOT>" "<VOICE_DIR>"
 python -m duolingal prepare-gptsovits "<PROJECT_ROOT>"
-python -m duolingal prepare-gptsovits-batch "<PROJECT_ROOT>" --speaker "<SPEAKER_NAME>" --limit 10 --reference-mode auto
-python -m duolingal prepare-gptsovits-reinject "<PROJECT_ROOT>" "<BATCH_DIR>" --target-voice-file "<TARGET_VOICE_FILE>" --source-output-name "<OUTPUT_WAV_NAME>"
-python -m duolingal prepare-gptsovits-reinject-batch "<PROJECT_ROOT>" "<BATCH_DIR>" --limit 50
-python -m duolingal prepare-gptsovits-train "<PROJECT_ROOT>" --speaker "<SPEAKER_NAME>"
-python -m duolingal prepare-gptsovits-production "<PROJECT_ROOT>" --sync-game-root
-python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\\tts-production\\all-cast-v1"
 ```
 
-## GPT-SoVITS Production Flow
+## 当前推荐工作流
 
-当前仓库已经支持一条可恢复的多角色量产队列，流程是：
+如果目标是像《千恋＊万花》这样，真正做出一版可玩的英文语音补丁，当前更推荐按下面这条顺序走：
+
+```text
+analyze
+  -> init-project
+  -> preflight
+  -> prepare-krkrdump / decompile-scripts
+  -> build-lines
+  -> export-dataset
+  -> prepare-gptsovits
+  -> prepare-gptsovits-train
+  -> prepare-gptsovits-production
+  -> run-gptsovits-production
+  -> game-ready/unencrypted
+  -> patch-build
+  -> final QA / final cleanup / release packaging
+```
+
+### 单角色验证
+
+如果你还在验证某个角色是否能训出来，优先看：
+
+- [GPT-SoVITS Training Guide](docs/gptsovits-training.zh-CN.md)
+- [GPT-SoVITS Local Runbook](docs/gptsovits-local-runbook.zh-CN.md)
+- [GPT-SoVITS Batch Guide](docs/gptsovits-batch.zh-CN.md)
+- [GPT-SoVITS Reinject Guide](docs/gptsovits-reinject.zh-CN.md)
+
+### 多角色量产
+
+如果你已经准备进入夜间多角色顺序训练与推理，优先看：
+
+- [GPT-SoVITS Production Guide](docs/gptsovits-production.zh-CN.md)
+
+## GPT-SoVITS 量产流程
+
+当前仓库已经支持一条 **可恢复、可夜跑** 的多角色量产队列，流程如下：
 
 ```text
 export-dataset
@@ -78,50 +140,93 @@ export-dataset
 更具体地说：
 
 - `prepare-gptsovits-production`
-  负责扫描角色、生成每个角色的训练工作区、写出夜跑计划和 `run-production.ps1`。
+  负责扫描角色、生成训练工作区、写出夜跑计划和 `run-production.ps1`
 - `run-gptsovits-production`
-  负责按计划顺序执行：
+  负责顺序执行：
   `前处理 -> GPT -> SoVITS -> 切权重 -> 批量推理 -> 转 OGG -> 合并覆盖树 -> 重建 patch-build`
-- 队列是可恢复的：
-  中断后重新运行同一个 `run-production.ps1`，已完成角色会跳过。
-- 队列对坏样本有基础容错：
-  英文如果退化成纯标点会尽量在批次准备阶段跳过；个别仍被 `/tts` 判为无效文本的行会被记录并跳过，不再整队中断。
-- Windows 下如果 `wav -> ogg` 因为日文路径导致 `soundfile` / `ffmpeg` 直接读取失败，
-  当前实现会先走 ASCII 临时中转再转换。
-- 队列运行时会持续更新：
+- 队列是可恢复的
+  中断后重新执行同一个 `run-production.ps1`，已完成角色会自动跳过
+- 队列会持续更新：
   - `production-state.json`
   - `production-status.txt`
-- `production-status.txt` 在训练和推理阶段会尽量写出：
-  当前 `epoch/batch` 或已完成句数、阶段百分比、已用时、预计剩余时间。
-- 被量产队列跳过的纯符号语气句不会进入补丁覆盖树；
-  这类句子在最终游戏里会继续播放原始日语语音。
-- 更强的“纯语气/弱句保留原音”规则当前建议放在最终收尾阶段；
-  因为最后删掉这些 `.ogg` 后，游戏会自然回退到原始日语语音。
 
-If your environment still uses an offline extractor instead of KrkrDump, `preflight` may recommend `extract` before `decompile-scripts`.
+## 权重与产物一定要保存
 
-4. Run tests:
+这一点很重要：**训练出来的角色权重、配置和批量生成结果，都应该长期保存。**
 
-```powershell
-python -m unittest discover -s tests
-```
+至少建议保留这些目录：
 
-## Toolchain
+- `<PROJECT_ROOT>/tts-training/<EXPERIMENT_NAME>/weights/gpt/`
+- `<PROJECT_ROOT>/tts-training/<EXPERIMENT_NAME>/weights/sovits/`
+- `<PROJECT_ROOT>/tts-training/<EXPERIMENT_NAME>/configs/`
+- `<PROJECT_ROOT>/tts-production/<PLAN_NAME>/`
 
-- `KrkrDump`
-  Preferred for KiriKiri Z script extraction. DuolinGal prepares `KrkrDump.json` and prints the launch command; the actual dump still runs on your local machine.
-- `FreeMote`
-  Used to decompile `.scn`, `.psb`, and `.psb.m` into JSON.
-- `KrkrExtract`
-  Kept as an optional offline fallback when a compatible CLI workflow is available.
-- `FFmpeg`
-  Planned for audio preprocessing.
-- `GPT-SoVITS`
-  Supported for training list preparation, speaker-specific training workspace generation, and resumable multi-speaker production queues; actual model installation remains external, and generated GPT / SoVITS training workspaces use Windows-safe single-GPU launchers.
+原因很简单：
 
-## Local API
+- 这些权重是你已经花时间、显卡和调参成本换来的成果
+- 它们不只是能给英文用，也能给后续其他文本版本复用
 
-Install optional API dependencies and start FastAPI:
+### 如果以后想做中文版《千恋＊万花》，还要重训吗？
+
+通常来说，**优先不需要重训，而是先直接复用现有角色权重做中文推理。**
+
+也就是说，当前更合理的默认判断是：
+
+1. 保留现有角色的 GPT / SoVITS 权重
+2. 如果以后做中文版，先准备中文文本
+3. 直接用现有角色模型跑中文推理
+4. 只有在听感明显不够好时，再考虑补训或重训
+
+这能大幅减少重复训练成本。  
+当然，中文文本的最终效果仍然会受以下因素影响：
+
+- GPT-SoVITS 对该角色的跨语言泛化能力
+- 中文文本预处理与断句质量
+- 专有名词和角色名的发音策略
+
+但默认顺序应该是：**先推理验证，再决定是否重训。**
+
+## 关于“纯语气句保留原音”的策略
+
+当前仓库已经支持基础保护：
+
+- 纯标点英文在批次准备阶段会被跳过
+- 个别被 `/tts` 判为无效文本的句子会被记录并跳过
+
+但更强的“纯语气/弱句保留原音”规则，当前建议放到**整轮量产结束之后**做最后收尾，而不是提前加进夜跑主线。
+
+原因是：
+
+- 过早做强过滤，容易误删本来已经生成得不错的英文语音
+- 量产先跑完，才能保住尽可能完整的第一版成果
+- 最后如果删掉某些 `.ogg`，游戏会自然回退到原始日语语音
+
+当前更推荐的顺序是：
+
+1. 先完成整轮训练、推理、转码、覆盖树构建
+2. 先对成品做备份或复制副本
+3. 再在副本上清理纯语气句、叫声、拟声句
+4. 最后把清理后的副本用于正式 release 打包
+
+## 文档导航
+
+- [Feasibility and Risk Assessment](docs/feasibility.zh-CN.md)
+- [Project Plan](docs/project-plan.zh-CN.md)
+- [Structure and Runtime Flow](docs/structure-and-runtime.zh-CN.md)
+- [Local Validation Checklist](docs/local-validation-checklist.zh-CN.md)
+- [Single-line PoC Guide](docs/single-line-poc.zh-CN.md)
+- [Patch Packaging Guide](docs/patch-packaging.zh-CN.md)
+- [Dataset Export Guide](docs/dataset-export.zh-CN.md)
+- [GPT-SoVITS Preparation Guide](docs/gptsovits-prep.zh-CN.md)
+- [GPT-SoVITS Batch Guide](docs/gptsovits-batch.zh-CN.md)
+- [GPT-SoVITS Reinject Guide](docs/gptsovits-reinject.zh-CN.md)
+- [GPT-SoVITS Training Guide](docs/gptsovits-training.zh-CN.md)
+- [GPT-SoVITS Local Runbook](docs/gptsovits-local-runbook.zh-CN.md)
+- [GPT-SoVITS Production Guide](docs/gptsovits-production.zh-CN.md)
+
+## 本地 API
+
+可选安装 API 依赖并启动 FastAPI：
 
 ```powershell
 pip install -e .[api]
@@ -129,29 +234,21 @@ $env:PYTHONPATH='src'
 uvicorn duolingal.api.app:create_app --factory --reload
 ```
 
-Available routes:
+可用接口包括：
 
 - `GET /health`
-- `GET /api/tools`
 - `POST /api/analyze`
 - `POST /api/projects/init`
-- `POST /api/projects/extract`
-- `POST /api/projects/decompile-scripts`
-- `POST /api/projects/prepare-krkrdump`
 - `POST /api/projects/preflight`
 - `POST /api/projects/build-lines`
-- `POST /api/projects/prepare-poc`
-- `POST /api/projects/prepare-patch`
 - `POST /api/projects/export-dataset`
 - `POST /api/projects/prepare-gptsovits`
 - `POST /api/projects/prepare-gptsovits-batch`
-- `POST /api/projects/prepare-gptsovits-reinject`
-- `POST /api/projects/prepare-gptsovits-reinject-batch`
 - `POST /api/projects/prepare-gptsovits-train`
 - `POST /api/projects/prepare-gptsovits-production`
 - `POST /api/projects/run-gptsovits-production`
 
-## Repository Layout
+## 仓库结构
 
 ```text
 DuolinGal/
@@ -166,25 +263,23 @@ DuolinGal/
 `-- tests/
 ```
 
-## Documents
+## 当前边界
 
-- [Feasibility and Risk Assessment](docs/feasibility.zh-CN.md)
-- [Project Plan](docs/project-plan.zh-CN.md)
-- [Structure and Runtime Flow](docs/structure-and-runtime.zh-CN.md)
-- [Path and Directory Assumptions](docs/path-assumptions.zh-CN.md)
-- [Local Validation Checklist](docs/local-validation-checklist.zh-CN.md)
-- [Single-line PoC Guide](docs/single-line-poc.zh-CN.md)
-- [Patch Packaging Guide](docs/patch-packaging.zh-CN.md)
-- [Dataset Export Guide](docs/dataset-export.zh-CN.md)
-- [GPT-SoVITS Preparation Guide](docs/gptsovits-prep.zh-CN.md)
-- [GPT-SoVITS Batch Guide](docs/gptsovits-batch.zh-CN.md)
-- [GPT-SoVITS Reinject Guide](docs/gptsovits-reinject.zh-CN.md)
-- [GPT-SoVITS Training Guide](docs/gptsovits-training.zh-CN.md)
-- [GPT-SoVITS Local Runbook](docs/gptsovits-local-runbook.zh-CN.md)
-- [GPT-SoVITS Production Guide](docs/gptsovits-production.zh-CN.md)
+当前仓库已经证明：
 
-## Boundaries
+- 角色级训练可以在 Windows 单卡环境下稳定运行
+- 多角色夜间量产可以持续推进
+- 生成语音可以真正回灌到游戏里体验
 
-- The repository does not ship commercial game assets.
-- The repository currently targets a research workflow, not a turnkey English dub patcher.
-- External binaries such as KrkrDump, FreeMote, KrkrExtract, and KirikiriTools should remain external dependencies.
+但它目前还没有完全自动化解决：
+
+- 专有名词发音词典
+- 最佳 epoch 自动搜索
+- 全自动听感 QA
+- 完全无人值守的弱句/拟声句精修
+
+所以当前更适合把 DuolinGal 看成：
+
+- 一条已经打通的 **工程化研究工作流**
+- 一个能持续产出成果的 **本地量产入口**
+- 而不是已经封装完成的最终用户“一键傻瓜软件”

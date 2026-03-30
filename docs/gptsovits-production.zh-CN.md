@@ -287,6 +287,48 @@ tts-production/all-cast-v1/
 - 先稳定批量出“第一版可玩结果”
 - 再按角色逐个微调更细的发音与听感
 
+## 权重和量产产物要长期保留
+
+建议长期保留这些目录：
+
+- `<PROJECT_ROOT>/tts-training/<EXPERIMENT_NAME>/weights/gpt/`
+- `<PROJECT_ROOT>/tts-training/<EXPERIMENT_NAME>/weights/sovits/`
+- `<PROJECT_ROOT>/tts-training/<EXPERIMENT_NAME>/configs/`
+- `<PROJECT_ROOT>/tts-production/<PLAN_NAME>/`
+
+原因：
+
+- 这些权重是你已经验证过的角色音色成果
+- 以后如果做别的文本版本，不应该默认重训
+- 量产目录里还包含角色批次、覆盖树、状态文件与日志，便于继续夜跑或回溯问题
+
+如果以后想做中文版等其他语言版本，当前更推荐的默认顺序是：
+
+1. 保留现有角色 GPT / SoVITS 权重
+2. 准备新语言文本
+3. 先直接用现有权重做新语言推理
+4. 只有听感明显不够好时，再考虑补训或重训
+
+## 最终弱句清理建议在副本上进行
+
+虽然当前量产流程已经会跳过明显无效的文本，但更强的“纯语气句 / 叫声 / 拟声句保留原音”清理，仍建议放到**整轮量产结束之后**再做。
+
+更稳的顺序是：
+
+1. 先把整轮训练、推理、转码、覆盖树构建全部跑完
+2. 复制一份：
+   - `tts-production/<PLAN_NAME>/game-ready/unencrypted/`
+   或
+   - `patch-build/`
+3. 在这个副本上清理不该英文覆盖的 `.ogg`
+4. 用清理后的副本做最终 QA 和 release 打包
+
+这样做的好处是：
+
+- 不会误删已经生成得不错的英文语音
+- 原始量产结果仍然完整保留
+- 如果清理规则过猛，可以回滚到量产原件重新来
+
 ## 建议夜跑方式
 
 1. 保持电脑插电
