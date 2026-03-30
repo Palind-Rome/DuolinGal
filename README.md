@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/Palind-Rome/DuolinGal?style=social)](https://github.com/Palind-Rome/DuolinGal)
 
-[English README](docs/README.en.md) · [快速开始](#快速开始) · [工作流](#当前推荐工作流) · [文档导航](#文档导航) · [本地 API](#本地-api) · [仓库结构](#仓库结构)
+[English README](docs/README.en.md) · [快速开始](#快速开始) · [工作流](#按目标选择路径) · [文档导航](#文档导航) · [本地 API](#本地-api) · [仓库结构](#仓库结构)
 
 </div>
 
