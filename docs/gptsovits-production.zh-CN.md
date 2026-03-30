@@ -6,7 +6,7 @@
 2. 前处理
 3. GPT 训练
 4. SoVITS 训练
-5. 英文批量推理
+5. 目标语言批量推理
 6. `wav -> ogg`
 7. 合并成总覆盖树，并重建 `patch-build`
 
@@ -23,11 +23,17 @@
 
 ## 仓库命令
 
-先准备一条量产计划：
+先准备一条量产计划。
+
+默认不传 `--target-language` 时，会生成英文计划，计划目录通常叫：
+
+- `tts-production/all-cast-v1`
+
+如果你想跑简体中文：
 
 ```powershell
 $env:PYTHONPATH='src'
-python -m duolingal prepare-gptsovits-production "<PROJECT_ROOT>" --sync-game-root
+python -m duolingal prepare-gptsovits-production "<PROJECT_ROOT>" --target-language zh-cn
 ```
 
 如果只想排部分角色，可以重复传 `--speaker`：
@@ -37,14 +43,15 @@ $env:PYTHONPATH='src'
 python -m duolingal prepare-gptsovits-production "<PROJECT_ROOT>" `
   --speaker "ムラサメ" `
   --speaker "芳乃" `
-  --speaker "茉子"
+  --speaker "茉子" `
+  --target-language zh-cn
 ```
 
 准备完成后，再运行：
 
 ```powershell
 $env:PYTHONPATH='src'
-python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-cast-v1"
+python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-cast-zh-cn-v1"
 ```
 
 或者直接在生成目录里执行：
@@ -59,8 +66,10 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
   至少多少条已对齐样本才保留该角色。
 - `--reference-mode`
   夜间推理时参考句策略，支持 `anchor`、`per-line`、`auto`。当前更推荐 `auto`。
+- `--target-language`
+  目标语言，支持 `en`、`zh-cn`、`zh-tw`。
 - `--inference-limit`
-  可选；限制每个角色最多推理多少条英文句子。
+  可选；限制每个角色最多推理多少条目标语言句子。
 - `--sync-game-root`
   队列跑完后，把合并好的 OGG 覆盖树同步到真实游戏目录的 `unencrypted/`。
 - `--gpt-epochs`
@@ -127,7 +136,7 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
 1. 如果前处理产物缺失，则运行 `run-prepare-all.ps1`
 2. 如果目标 GPT 权重缺失，则运行 `run-train-gpt.ps1`
 3. 如果目标 SoVITS 权重缺失，则运行 `run-train-sovits.ps1`
-4. 准备该角色的 GPT-SoVITS 英文批次
+4. 准备该角色的 GPT-SoVITS 目标语言批次
 5. 启动或复用 `api_v2.py`
 6. 切换到当前角色的 GPT / SoVITS 权重
 7. 调用 `/tts` 批量合成
@@ -156,7 +165,7 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
 
 ## 生产队列里的文本清洗保护
 
-- 英文预览句如果在进入 GPT-SoVITS 前已经退化成“只有标点”的文本，比如 `......` 或 `.`
+- 目标语言预览句如果在进入 GPT-SoVITS 前已经退化成“只有标点”的文本，比如 `......` 或 `.`
   现在会在批次准备阶段被自动跳过，不再送去 `/tts`。
 - 如果仍然有个别句子在 GPT-SoVITS 内部进一步清洗后变成无效文本，生产队列会把它记到：
   - `batches/<BATCH_NAME>/skipped-invalid-tts.jsonl`
@@ -167,29 +176,29 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
 
 ## 被跳过的句子会怎样
 
-如果某句英文因为以下原因被跳过：
+如果某句目标语言台词因为以下原因被跳过：
 
 - 它本身退化成纯标点
 - `/tts` 最终认定它不是有效文本
 
 那么量产队列的行为是：
 
-1. 不为这句生成新的英文 `.ogg`
+1. 不为这句生成新的目标语言 `.ogg`
 2. 不把这条语音文件放进总覆盖树
 3. 最终游戏里仍然播放原始日语语音
 
 也就是说，当前策略不是“坏句也强行英配”，而是：
 
-- **有可靠英文输出的句子才覆盖**
+- **有可靠目标语言输出的句子才覆盖**
 - **纯符号/超弱语气句默认保留原音**
 
-这对《千恋万花》这类作品反而通常更稳，因为像 `……`、`!`、`……？` 这种语气音，本来就未必适合硬做英文 TTS。
+这对《千恋万花》这类作品反而通常更稳，因为像 `……`、`!`、`……？` 这种语气音，本来就未必适合硬做目标语言 TTS。
 
 ## 关于“纯语气句保留原音”的当前策略
 
 当前仓库已经支持：
 
-- 纯标点英文在批次准备阶段直接跳过
+- 纯标点目标文本在批次准备阶段直接跳过
 
 但**更强的“弱句/纯语气句自动剔除”**，当前仍建议放在量产流程的最后做人工或半自动收尾，而不是现在就前置到整条夜跑队列里。
 
@@ -214,7 +223,7 @@ Windows 下这一轮实际踩到过的情况是：
 所以当前实现会在**目标输出目录附近**临时创建一个只含 ASCII 的中转目录，例如：
 
 ```text
-tts-production/all-cast-v1/
+tts-production/all-cast-zh-cn-v1/
 `-- .gptsovits-ogg-<random>/
     |-- input.wav
     `-- output.ogg
@@ -278,7 +287,7 @@ tts-production/all-cast-v1/
 
 在这组权重下：
 
-- 英文推理已经成功
+- 目标语言推理已经成功
 - 回灌游戏已经成功
 - 丛雨前 50 句已经成功生成并放进游戏体验
 
@@ -320,12 +329,12 @@ tts-production/all-cast-v1/
    - `tts-production/<PLAN_NAME>/game-ready/unencrypted/`
    或
    - `patch-build/`
-3. 在这个副本上清理不该英文覆盖的 `.ogg`
+3. 在这个副本上清理不该目标语言覆盖的 `.ogg`
 4. 用清理后的副本做最终 QA 和 release 打包
 
 这样做的好处是：
 
-- 不会误删已经生成得不错的英文语音
+- 不会误删已经生成得不错的目标语言语音
 - 原始量产结果仍然完整保留
 - 如果清理规则过猛，可以回滚到量产原件重新来
 
@@ -341,7 +350,7 @@ tts-production/all-cast-v1/
    - `logs/`
    - `game-ready/unencrypted/`
 
-整作全角色、全英文句子的训练和推理通常不会在一个短夜里全部完成，所以这条队列默认按照“可恢复”来设计。跑到哪一步都没关系，第二天继续执行同一份计划即可。
+整作全角色、全目标语言句子的训练和推理通常不会在一个短夜里全部完成，所以这条队列默认按照“可恢复”来设计。跑到哪一步都没关系，第二天继续执行同一份计划即可。
 
 ## 当前边界
 
@@ -354,7 +363,7 @@ tts-production/all-cast-v1/
 
 它还没有解决：
 
-- 专有名词英文发音词典
+- 专有名词发音词典
 - 最佳 epoch 自动搜索
 - 全自动听感 QA
 - 每个角色独立的“是否继续加训”智能判断

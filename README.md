@@ -71,7 +71,7 @@ DuolinGal 是一条已经工程化的工作流。它解决的核心问题是：
 1. 把 galgame 里的文本、语音、角色拆成可训练数据
 2. 让 GPT-SoVITS 在 Windows 单卡环境下稳定训练与批量推理
 3. 把生成结果重新整理成游戏可直接覆盖的语音树
-4. 为最终的英文语音补丁打包
+4. 为最终的目标语言语音补丁打包
 
 ## 🌟 当前能力
 
@@ -81,7 +81,7 @@ DuolinGal 是一条已经工程化的工作流。它解决的核心问题是：
 - 调用外部工具反编译 `.scn` / `.psb`
 - 构建 `lines.csv` 与脚本节点索引
 - 导出角色级 TTS 训练数据集
-- 生成 GPT-SoVITS 训练清单与英文预览
+- 生成 GPT-SoVITS 训练清单与多语言预览
 - 生成单角色 GPT-SoVITS 训练工作区
 - 生成并执行可恢复的多角色 GPT-SoVITS 量产队列
 - 批量把生成语音转成游戏覆盖用 `.ogg`
@@ -151,7 +151,7 @@ python -m duolingal prepare-gptsovits "<PROJECT_ROOT>"
 
 - 项目初始化
 - 脚本与语音资源导出
-- 角色级训练清单与英文预览生成
+- 角色级训练清单与多语言预览生成
 
 接下来请按目标进入下面三条路径之一。
 
@@ -166,7 +166,7 @@ prepare-gptsovits-train
   -> run-prepare-all.ps1
   -> run-train-gpt.ps1
   -> run-train-sovits.ps1
-  -> 准备英文批次
+  -> 准备目标语言批次
   -> 本地试听 / 回灌游戏
 ```
 
@@ -198,7 +198,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\run-train-sovits.ps1
 
 ### B. 多角色量产
 
-如果你已经不只是验证单角色，而是要顺序训练多个角色并批量生成英文语音，当前推荐顺序是：
+如果你已经不只是验证单角色，而是要顺序训练多个角色并批量生成目标语言语音，当前推荐顺序是：
 
 ```text
 prepare-gptsovits-production
@@ -210,11 +210,17 @@ prepare-gptsovits-production
   -> 可选同步到真实游戏目录
 ```
 
-先准备一条量产计划：
+先准备一条量产计划。
+
+默认不传 `--target-language` 时，会准备英文量产计划，计划目录通常会叫：
+
+- `tts-production/all-cast-v1`
+
+例如准备一条简体中文量产计划：
 
 ```powershell
 $env:PYTHONPATH='src'
-python -m duolingal prepare-gptsovits-production "<PROJECT_ROOT>" --sync-game-root
+python -m duolingal prepare-gptsovits-production "<PROJECT_ROOT>" --target-language zh-cn
 ```
 
 如果只想排部分角色：
@@ -224,14 +230,15 @@ $env:PYTHONPATH='src'
 python -m duolingal prepare-gptsovits-production "<PROJECT_ROOT>" `
   --speaker "ムラサメ" `
   --speaker "芳乃" `
-  --speaker "茉子"
+  --speaker "茉子" `
+  --target-language zh-cn
 ```
 
 然后运行：
 
 ```powershell
 $env:PYTHONPATH='src'
-python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-cast-v1"
+python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-cast-zh-cn-v1"
 ```
 
 或者直接执行生成出来的：
@@ -339,20 +346,20 @@ export-dataset
 原因很简单：
 
 - 这些权重是你已经花时间、显卡和调参成本换来的成果
-- 它们不只是能给英文用，也能给后续其他文本版本复用
+- 它们不只是能给当前语言版本用，也能给后续其他文本版本复用
 
 ## 关于“纯语气句保留原音”的策略
 
 当前仓库已经支持基础保护：
 
-- 纯标点英文在批次准备阶段会被跳过
+- 纯标点目标文本在批次准备阶段会被跳过
 - 个别被 `/tts` 判为无效文本的句子会被记录并跳过
 
 但更强的“纯语气/弱句保留原音”规则，当前建议放到**整轮量产结束之后**做最后收尾，而不是提前加进跑主线。
 
 原因是：
 
-- 过早做强过滤，容易误删本来已经生成得不错的英文语音
+- 过早做强过滤，容易误删本来已经生成得不错的目标语言语音
 - 量产先跑完，才能保住尽可能完整的第一版成果
 - 最后如果删掉某些 `.ogg`，游戏会自然回退到原始日语语音
 

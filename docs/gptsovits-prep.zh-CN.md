@@ -4,7 +4,7 @@
 
 - 复用已经导出的 `tts-dataset`
 - 为每个角色生成 GPT-SoVITS 可直接读取的训练清单
-- 同时保留一份英文预览映射，方便后续做合成与人工抽检
+- 同时保留多语言预览映射，方便后续做合成与人工抽检
 
 当前这一步**不会修改原始 galgame 音频**，也不会做：
 
@@ -54,7 +54,9 @@ tts-dataset/
     |-- metadata.csv
     `-- gptsovits/
         |-- train_ja.list
-        `-- preview_en.csv
+        |-- preview_en.csv
+        |-- preview_cn.csv
+        `-- preview_tw.csv
 ```
 
 `train_ja.list`
@@ -63,22 +65,22 @@ tts-dataset/
 - 每行格式：
   `绝对音频路径|角色名|ja|日文台词`
 
-`preview_en.csv`
+`preview_en.csv` / `preview_cn.csv` / `preview_tw.csv`
 
-- 用于后续英文合成与人工复核
+- 用于后续英文、简体中文、繁体中文合成与人工复核
 - 保留：
-  `line_id / speaker_name / jp_text / en_text / audio_path`
+  `line_id / speaker_name / jp_text / target_text / audio_path`
 
 ## 为什么先导出日文训练清单
 
 因为我们当前目标是：
 
 1. 用原始日语角色语音做角色音色训练
-2. 后面再把同一批对齐好的英文文本拿来做英文生成
+2. 后面再把同一批对齐好的目标语言文本拿来做目标语言生成
 
 所以这一步先稳定输出：
 
 - 日语训练输入
-- 英文目标预览
+- 多语言目标预览
 
 这样比一开始就把训练、推理、补丁三件事绑死在一起更稳。
