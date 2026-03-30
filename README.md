@@ -100,6 +100,8 @@ analyze
   -> run-gptsovits-production
   -> game-ready/unencrypted
   -> patch-build
+  -> prepare-final-cleanup
+  -> cleanup copy review / QA
   -> final QA / final cleanup / release packaging
 ```
 
@@ -204,9 +206,17 @@ export-dataset
 当前更推荐的顺序是：
 
 1. 先完成整轮训练、推理、转码、覆盖树构建
-2. 先对成品做备份或复制副本
+2. 运行 `prepare-final-cleanup`，生成一份安全副本
 3. 再在副本上清理纯语气句、叫声、拟声句
-4. 最后把清理后的副本用于正式 release 打包
+4. 用清理后的副本重建 `patch-build`
+5. 最后把清理后的副本用于正式 release 打包
+
+对应命令是：
+
+```powershell
+$env:PYTHONPATH='src'
+python -m duolingal prepare-final-cleanup "<PROJECT_ROOT>"
+```
 
 ## 文档导航
 
