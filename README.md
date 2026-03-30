@@ -6,11 +6,11 @@
 
 **面向 KiriKiri Z galgame 的本地优先语音研究工具链**
 
-[![Python 3.10‑3.13](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/Palind-Rome/DuolinGal?style=social)](https://github.com/Palind-Rome/DuolinGal)
 
-[快速开始](#快速开始) · [推荐工作流](#当前推荐工作流) · [文档导航](#文档导航) · [本地 API](#本地-api) · [仓库结构](#仓库结构)
+[快速开始](#快速开始) · [推荐工作流](#当前推荐工作流) · [文档导航](#文档导航) · [English README](docs/README.en.md) · [本地 API](#本地-api) · [仓库结构](#仓库结构)
 
 </div>
 
