@@ -184,6 +184,7 @@ def create_app() -> FastAPI:
                 limit=request.limit,
                 prompt_line_id=request.prompt_line_id,
                 reference_mode=request.reference_mode,
+                target_language=request.target_language,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -246,6 +247,7 @@ def create_app() -> FastAPI:
                 min_lines=request.min_lines,
                 gpt_sovits_root=request.gpt_sovits_root,
                 reference_mode=request.reference_mode,
+                target_language=request.target_language,
                 inference_limit=request.inference_limit,
                 target_sample_rate=request.target_sample_rate,
                 api_port=request.api_port,

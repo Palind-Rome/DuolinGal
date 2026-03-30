@@ -94,6 +94,12 @@ def main(argv: list[str] | None = None) -> int:
         default="anchor",
         help="How GPT-SoVITS reference audio/text should be chosen for each target line.",
     )
+    gptsovits_batch_parser.add_argument(
+        "--target-language",
+        choices=["en", "zh-cn", "zh-tw"],
+        default="en",
+        help="Which translated target text to synthesize.",
+    )
 
     gptsovits_reinject_parser = subparsers.add_parser(
         "prepare-gptsovits-reinject",
@@ -140,6 +146,7 @@ def main(argv: list[str] | None = None) -> int:
     gptsovits_production_parser.add_argument("--min-lines", type=int, default=1, help="Minimum aligned line count required to keep a speaker in the queue.")
     gptsovits_production_parser.add_argument("--gpt-sovits-root", help="Optional local GPT-SoVITS repository root override.")
     gptsovits_production_parser.add_argument("--reference-mode", choices=["anchor", "per-line", "auto"], default="auto", help="How GPT-SoVITS reference audio/text should be chosen during overnight inference.")
+    gptsovits_production_parser.add_argument("--target-language", choices=["en", "zh-cn", "zh-tw"], default="en", help="Which translated target text to synthesize during production.")
     gptsovits_production_parser.add_argument("--inference-limit", type=int, help="Optional per-speaker cap for how many English preview lines to synthesize.")
     gptsovits_production_parser.add_argument("--target-sample-rate", type=int, default=48000, help="Target OGG sample rate for the combined game-ready outputs.")
     gptsovits_production_parser.add_argument("--api-port", type=int, default=9880, help="Local GPT-SoVITS api_v2 port.")
@@ -269,6 +276,7 @@ def main(argv: list[str] | None = None) -> int:
             limit=args.limit,
             prompt_line_id=args.prompt_line_id,
             reference_mode=args.reference_mode,
+            target_language=args.target_language,
         )
         _emit_json(result.model_dump(mode="json", exclude_none=True))
         return 0
@@ -319,6 +327,7 @@ def main(argv: list[str] | None = None) -> int:
             min_lines=args.min_lines,
             gpt_sovits_root=args.gpt_sovits_root,
             reference_mode=args.reference_mode,
+            target_language=args.target_language,
             inference_limit=args.inference_limit,
             target_sample_rate=args.target_sample_rate,
             api_port=args.api_port,

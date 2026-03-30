@@ -33,6 +33,11 @@ _TRAINING_STARTED_RE = re.compile(r"Training started: epochs=(\d+), batches_per_
 _EPOCH_STARTED_RE = re.compile(r"Epoch (\d+)/(\d+) started")
 _EPOCH_BATCH_RE = re.compile(r"Epoch (\d+) \| batch (\d+)/(\d+)")
 _PRODUCTION_OVERRIDES_FILE = "tts-production/production-overrides.json"
+_TARGET_LANGUAGE_SPECS: dict[str, dict[str, str]] = {
+    "en": {"preview_file": "preview_en.csv", "text_key": "en_text", "label_zh": "英文", "suffix": "en"},
+    "zh-cn": {"preview_file": "preview_cn.csv", "text_key": "cn_text", "label_zh": "简体中文", "suffix": "zh-cn"},
+    "zh-tw": {"preview_file": "preview_tw.csv", "text_key": "tw_text", "label_zh": "繁體中文", "suffix": "zh-tw"},
+}
 
 
 def prepare_gptsovits_production(
@@ -42,6 +47,7 @@ def prepare_gptsovits_production(
     min_lines: int = 1,
     gpt_sovits_root: str | Path | None = None,
     reference_mode: str = "auto",
+    target_language: str = "en",
     inference_limit: int | None = None,
     target_sample_rate: int = 48000,
     api_port: int = 9880,
@@ -55,6 +61,8 @@ def prepare_gptsovits_production(
         raise ValueError("Minimum line count must be at least 1.")
     if inference_limit is not None and inference_limit < 1:
         raise ValueError("Inference limit must be at least 1 when provided.")
+    if target_language not in _TARGET_LANGUAGE_SPECS:
+        raise ValueError(f"Unsupported GPT-SoVITS target language: {target_language}")
 
     manifest = load_project_manifest(project_root)
     resolved_project_root = Path(manifest.workspace_path).resolve()
@@ -68,6 +76,7 @@ def prepare_gptsovits_production(
         dataset_root,
         requested_speakers=speakers or [],
         min_lines=min_lines,
+        target_language=target_language,
     )
     excluded_speakers = overrides["exclude_speakers"]
     if excluded_speakers:
@@ -75,7 +84,11 @@ def prepare_gptsovits_production(
     if not selected_speakers:
         raise ValueError("No speaker datasets matched the requested production criteria.")
 
-    production_name = _derive_production_name(selected_speakers, explicit_speakers=speakers or [])
+    production_name = _derive_production_name(
+        selected_speakers,
+        explicit_speakers=speakers or [],
+        target_language=target_language,
+    )
     production_root = resolved_project_root / "tts-production" / production_name
     scripts_dir = production_root / "scripts"
     logs_dir = production_root / "logs"
@@ -108,6 +121,7 @@ def prepare_gptsovits_production(
                 line_count=speaker["line_count"],
                 preview_count=speaker["preview_count"],
                 batch_limit=batch_limit,
+                target_language=target_language,
                 prompt_line_id=overrides["speaker_prompt_line_ids"].get(speaker["speaker_name"]),
                 experiment_name=training_result.experiment_name,
                 training_root=training_result.training_root,
@@ -131,6 +145,7 @@ def prepare_gptsovits_production(
         "game_root": manifest.root_path,
         "gpt_sovits_root": str(resolved_gpt_root),
         "reference_mode": reference_mode,
+        "target_language": target_language,
         "target_sample_rate": target_sample_rate,
         "api_port": api_port,
         "sync_game_root": sync_game_root,
@@ -150,6 +165,7 @@ def prepare_gptsovits_production(
     readme_path.write_text(
         _build_production_readme(
             speaker_count=len(speaker_plans),
+            target_language=target_language,
             reference_mode=reference_mode,
             inference_limit=inference_limit,
             sync_game_root=sync_game_root,
@@ -167,6 +183,7 @@ def prepare_gptsovits_production(
         combined_override_root=str(combined_override_root),
         api_port=api_port,
         sync_game_root=sync_game_root,
+        target_language=target_language,
         speaker_count=len(speaker_plans),
         speakers=speaker_plans,
         notes=[
@@ -190,6 +207,8 @@ def run_gptsovits_production(production_root: str | Path) -> GptSovitsProduction
     logs_dir = Path(plan["logs_dir"]).resolve()
     logs_dir.mkdir(parents=True, exist_ok=True)
     overrides = _load_production_overrides(project_root)
+    target_language = str(plan.get("target_language") or "en")
+    target_label_zh = _TARGET_LANGUAGE_SPECS.get(target_language, _TARGET_LANGUAGE_SPECS["en"])["label_zh"]
     state_path = resolved_production_root / "production-state.json"
     status_path = resolved_production_root / "production-status.txt"
     total_speakers = len(plan["speakers"])
@@ -336,7 +355,7 @@ def run_gptsovits_production(production_root: str | Path) -> GptSovitsProduction
         print(f"[queue] [{speaker_index}/{total_speakers}] Stage SoVITS -> ready ({sovits_weight_path.name})")
 
         print(
-            f"[queue] [{speaker_index}/{total_speakers}] Stage batch -> preparing {speaker_plan['batch_limit']} English lines"
+            f"[queue] [{speaker_index}/{total_speakers}] Stage batch -> preparing {speaker_plan['batch_limit']} {target_label_zh} lines"
         )
         _write_state(
             state_path,
@@ -353,6 +372,7 @@ def run_gptsovits_production(production_root: str | Path) -> GptSovitsProduction
             limit=int(speaker_plan["batch_limit"]),
             prompt_line_id=speaker_plan.get("prompt_line_id") or overrides["speaker_prompt_line_ids"].get(speaker_name),
             reference_mode=plan["reference_mode"],
+            target_language=target_language,
         )
 
         speaker_api_process = None
@@ -527,12 +547,19 @@ def run_gptsovits_production(production_root: str | Path) -> GptSovitsProduction
     )
 
 
-def _select_speakers(dataset_root: Path, *, requested_speakers: list[str], min_lines: int) -> list[dict[str, Any]]:
+def _select_speakers(
+    dataset_root: Path,
+    *,
+    requested_speakers: list[str],
+    min_lines: int,
+    target_language: str,
+) -> list[dict[str, Any]]:
     normalized_targets = {name.casefold() for name in requested_speakers}
     selected: list[dict[str, Any]] = []
+    target_spec = _TARGET_LANGUAGE_SPECS[target_language]
     for speaker_dir in sorted(path for path in dataset_root.iterdir() if path.is_dir()):
         metadata_path = speaker_dir / "metadata.csv"
-        preview_path = speaker_dir / "gptsovits" / "preview_en.csv"
+        preview_path = speaker_dir / "gptsovits" / target_spec["preview_file"]
         if not metadata_path.exists() or not preview_path.exists():
             continue
 
@@ -552,7 +579,8 @@ def _select_speakers(dataset_root: Path, *, requested_speakers: list[str], min_l
         preview_count = sum(
             1
             for row in preview_rows
-            if _has_meaningful_target_text(row.get("en_text") or "") and Path(row.get("audio_path") or "").exists()
+            if _has_meaningful_target_text(_row_target_text(row, target_language=target_language))
+            and Path(row.get("audio_path") or "").exists()
         )
         if line_count < min_lines or preview_count < 1:
             continue
@@ -562,6 +590,7 @@ def _select_speakers(dataset_root: Path, *, requested_speakers: list[str], min_l
                 "speaker_name": speaker_name,
                 "line_count": line_count,
                 "preview_count": preview_count,
+                "target_language": target_language,
             }
         )
 
@@ -594,13 +623,19 @@ def _load_production_overrides(project_root: Path) -> dict[str, Any]:
     }
 
 
-def _derive_production_name(selected_speakers: list[dict[str, Any]], *, explicit_speakers: list[str]) -> str:
+def _derive_production_name(
+    selected_speakers: list[dict[str, Any]],
+    *,
+    explicit_speakers: list[str],
+    target_language: str,
+) -> str:
+    suffix = _TARGET_LANGUAGE_SPECS[target_language]["suffix"]
     if not explicit_speakers:
-        return "all-cast-v1"
+        return "all-cast-v1" if target_language == "en" else f"all-cast-{suffix}-v1"
 
     joined = "|".join(sorted(explicit_speakers))
     digest = hashlib.sha1(joined.encode("utf-8")).hexdigest()[:8]
-    return f"subset-{digest}-v1"
+    return f"subset-{digest}-v1" if target_language == "en" else f"subset-{digest}-{suffix}-v1"
 
 
 def _build_run_script(queue_path: Path, *, resolved_repo_root: Path) -> str:
@@ -624,14 +659,17 @@ Set-Location '{resolved_repo_root}'
 def _build_production_readme(
     *,
     speaker_count: int,
+    target_language: str,
     reference_mode: str,
     inference_limit: int | None,
     sync_game_root: bool,
 ) -> str:
-    limit_text = "全部英文预览句" if inference_limit is None else f"每个角色前 {inference_limit} 句英文预览"
+    target_label_zh = _TARGET_LANGUAGE_SPECS[target_language]["label_zh"]
+    limit_text = f"全部{target_label_zh}预览句" if inference_limit is None else f"每个角色前 {inference_limit} 句{target_label_zh}预览"
     return (
         "# GPT-SoVITS 夜间量产计划\n\n"
         f"- 角色数：`{speaker_count}`\n"
+        f"- 目标语言：`{target_language}`（{target_label_zh}）\n"
         f"- 推理范围：`{limit_text}`\n"
         f"- 参考模式：`{reference_mode}`\n"
         f"- 结束后自动同步游戏目录：`{sync_game_root}`\n\n"
@@ -1110,6 +1148,15 @@ def _has_meaningful_target_text(text: str) -> bool:
     if not stripped:
         return False
     return any(char.isalnum() for char in stripped)
+
+
+def _row_target_text(row: dict[str, str], *, target_language: str) -> str:
+    explicit_target = (row.get("target_text") or "").strip()
+    if explicit_target:
+        return explicit_target
+
+    target_spec = _TARGET_LANGUAGE_SPECS[target_language]
+    return (row.get(target_spec["text_key"]) or "").strip()
 
 
 def _sync_game_root(game_root: Path, combined_override_root: Path) -> str:

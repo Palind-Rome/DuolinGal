@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import shutil
 from collections import defaultdict
 from pathlib import Path
@@ -27,6 +28,7 @@ def export_tts_dataset(
         raise ValueError(f"lines.csv does not exist yet: {lines_path}")
 
     rows = _load_rows(lines_path)
+    translations_by_line_id = _load_translation_lookup(resolved_project_root)
     grouped: dict[str, list[dict[str, str]]] = defaultdict(list)
     normalized_target_speaker = speaker_name.casefold() if speaker_name else None
 
@@ -74,6 +76,8 @@ def export_tts_dataset(
                     "audio_path",
                     "jp_text",
                     "en_text",
+                    "cn_text",
+                    "tw_text",
                 ],
             )
             writer.writeheader()
@@ -83,6 +87,7 @@ def export_tts_dataset(
                 destination_path = audio_dir / voice_file
                 if not destination_path.exists():
                     shutil.copy2(source_path, destination_path)
+                translation_row = translations_by_line_id.get(row["line_id"], {})
                 writer.writerow(
                     {
                         "line_id": row["line_id"],
@@ -93,6 +98,8 @@ def export_tts_dataset(
                         "audio_path": f"audio/{voice_file}",
                         "jp_text": row["jp_text"],
                         "en_text": row.get("en_text") or "",
+                        "cn_text": row.get("cn_text") or translation_row.get("cn_text") or "",
+                        "tw_text": row.get("tw_text") or translation_row.get("tw_text") or "",
                     }
                 )
 
@@ -127,6 +134,50 @@ def export_tts_dataset(
 def _load_rows(lines_path: Path) -> list[dict[str, str]]:
     with lines_path.open(encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))
+
+
+def _load_translation_lookup(project_root: Path) -> dict[str, dict[str, str]]:
+    nodes_path = project_root / "dataset" / "script_nodes.jsonl"
+    if not nodes_path.exists():
+        return {}
+
+    lookup: dict[str, dict[str, str]] = {}
+    with nodes_path.open(encoding="utf-8", newline="\n") as handle:
+        for raw_line in handle:
+            stripped = raw_line.strip()
+            if not stripped:
+                continue
+            try:
+                payload = json.loads(stripped)
+            except json.JSONDecodeError:
+                continue
+
+            scene_id = str(payload.get("scene_id") or "").strip()
+            order_index = payload.get("order_index")
+            if not scene_id or order_index is None:
+                continue
+
+            try:
+                order_index_int = int(order_index)
+            except (TypeError, ValueError):
+                continue
+
+            metadata = payload.get("metadata") or {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+
+            cn_text = str(metadata.get("cn_text") or "").strip()
+            tw_text = str(metadata.get("tw_text") or "").strip()
+            if not cn_text and not tw_text:
+                continue
+
+            line_id = f"{scene_id}-{order_index_int:04d}"
+            lookup[line_id] = {
+                "cn_text": cn_text,
+                "tw_text": tw_text,
+            }
+
+    return lookup
 
 
 def _slugify_speaker(speaker_name: str) -> str:

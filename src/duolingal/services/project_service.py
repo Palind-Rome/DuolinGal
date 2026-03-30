@@ -184,6 +184,7 @@ class ProjectService:
         limit: int = 10,
         prompt_line_id: str | None = None,
         reference_mode: str = "anchor",
+        target_language: str = "en",
     ) -> GptSovitsBatchResult:
         return prepare_gptsovits_batch_inputs(
             project_root,
@@ -191,6 +192,7 @@ class ProjectService:
             limit=limit,
             prompt_line_id=prompt_line_id,
             reference_mode=reference_mode,
+            target_language=target_language,
         )
 
     def prepare_gptsovits_reinject(
@@ -264,6 +266,7 @@ class ProjectService:
         min_lines: int = 1,
         gpt_sovits_root: str | Path | None = None,
         reference_mode: str = "auto",
+        target_language: str = "en",
         inference_limit: int | None = None,
         target_sample_rate: int = 48000,
         api_port: int = 9880,
@@ -279,6 +282,7 @@ class ProjectService:
             min_lines=min_lines,
             gpt_sovits_root=gpt_sovits_root,
             reference_mode=reference_mode,
+            target_language=target_language,
             inference_limit=inference_limit,
             target_sample_rate=target_sample_rate,
             api_port=api_port,

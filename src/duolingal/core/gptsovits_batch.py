@@ -12,12 +12,36 @@ from duolingal.domain.models import GptSovitsBatchItem, GptSovitsBatchResult
 
 ReferenceMode = Literal["anchor", "per-line", "auto"]
 PromptSource = Literal["anchor", "self", "anchor-fallback"]
+TargetLanguage = Literal["en", "zh-cn", "zh-tw"]
 
 _REFERENCE_MODES: set[str] = {"anchor", "per-line", "auto"}
 _PROMPT_STRIP_RE = re.compile(r"[「」『』（）()\[\]【】〈〉《》〔〕…—ー・,，、。！？!?.~〜\-　\s]")
 _KANA_ONLY_RE = re.compile(r"[ぁ-ゖァ-ヺー]+")
 _REFERENCE_MIN_SECONDS = 3.0
 _REFERENCE_MAX_SECONDS = 10.0
+_TARGET_LANGUAGE_SPECS: dict[str, dict[str, str]] = {
+    "en": {
+        "preview_file": "preview_en.csv",
+        "text_key": "en_text",
+        "api_lang": "en",
+        "suffix": "en",
+        "label_zh": "英文",
+    },
+    "zh-cn": {
+        "preview_file": "preview_cn.csv",
+        "text_key": "cn_text",
+        "api_lang": "zh",
+        "suffix": "zh-cn",
+        "label_zh": "简体中文",
+    },
+    "zh-tw": {
+        "preview_file": "preview_tw.csv",
+        "text_key": "tw_text",
+        "api_lang": "zh",
+        "suffix": "zh-tw",
+        "label_zh": "繁體中文",
+    },
+}
 
 
 def prepare_gptsovits_batch(
@@ -27,11 +51,14 @@ def prepare_gptsovits_batch(
     limit: int = 10,
     prompt_line_id: str | None = None,
     reference_mode: ReferenceMode = "anchor",
+    target_language: TargetLanguage = "en",
 ) -> GptSovitsBatchResult:
     if limit < 1:
         raise ValueError("Batch size must be at least 1.")
     if reference_mode not in _REFERENCE_MODES:
         raise ValueError(f"Unsupported GPT-SoVITS reference mode: {reference_mode}")
+    if target_language not in _TARGET_LANGUAGE_SPECS:
+        raise ValueError(f"Unsupported GPT-SoVITS target language: {target_language}")
 
     manifest = load_project_manifest(project_root)
     resolved_project_root = Path(manifest.workspace_path).resolve()
@@ -39,22 +66,23 @@ def prepare_gptsovits_batch(
     if not dataset_root.exists():
         raise ValueError(f"TTS dataset root does not exist: {dataset_root}")
 
-    speaker_dir, preview_rows = _find_speaker_preview(dataset_root, speaker_name)
+    target_spec = _TARGET_LANGUAGE_SPECS[target_language]
+    speaker_dir, preview_rows = _find_speaker_preview(dataset_root, speaker_name, target_language=target_language)
     if not preview_rows:
-        raise ValueError(f"No English preview rows found for speaker: {speaker_name}")
+        raise ValueError(f"No GPT-SoVITS preview rows found for speaker: {speaker_name} / {target_language}")
 
     valid_rows = [
         row
         for row in preview_rows
-        if _has_meaningful_target_text(row.get("en_text") or "") and Path(row["audio_path"]).exists()
+        if _has_meaningful_target_text(_row_target_text(row, target_language=target_language)) and Path(row["audio_path"]).exists()
     ]
     if not valid_rows:
-        raise ValueError(f"No valid GPT-SoVITS preview rows found for speaker: {speaker_name}")
+        raise ValueError(f"No valid GPT-SoVITS preview rows found for speaker: {speaker_name} / {target_language}")
 
     anchor_row = _pick_prompt_row(valid_rows, prompt_line_id)
     target_rows = valid_rows[:limit]
 
-    batch_name = f"first-{len(target_rows):02d}-en"
+    batch_name = f"first-{len(target_rows):02d}-{target_spec['suffix']}"
     batch_dir = speaker_dir / "gptsovits" / "batches" / batch_name
     output_dir = batch_dir / "outputs"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -87,7 +115,11 @@ def prepare_gptsovits_batch(
             voice_file=voice_file,
             source_audio_path=row["audio_path"],
             jp_text=row["jp_text"],
-            en_text=row["en_text"],
+            target_text=_row_target_text(row, target_language=target_language),
+            target_language=target_language,
+            en_text=(row.get("en_text") or "").strip() or None,
+            cn_text=(row.get("cn_text") or "").strip() or None,
+            tw_text=(row.get("tw_text") or "").strip() or None,
             output_file_name=output_file_name,
             prompt_line_id=prompt_row["line_id"],
             prompt_audio_path=prompt_row["audio_path"],
@@ -103,7 +135,11 @@ def prepare_gptsovits_batch(
                 "voice_file": item.voice_file,
                 "source_audio_path": item.source_audio_path,
                 "jp_text": item.jp_text,
+                "target_language": item.target_language,
+                "target_text": item.target_text,
                 "en_text": item.en_text,
+                "cn_text": item.cn_text or "",
+                "tw_text": item.tw_text or "",
                 "prompt_line_id": item.prompt_line_id,
                 "prompt_audio_path": item.prompt_audio_path,
                 "prompt_text": item.prompt_text,
@@ -121,8 +157,8 @@ def prepare_gptsovits_batch(
                     "output_file_name": item.output_file_name,
                     "source_audio_path": item.source_audio_path,
                     "request": {
-                        "text": item.en_text,
-                        "text_lang": "en",
+                        "text": item.target_text,
+                        "text_lang": target_spec["api_lang"],
                         "ref_audio_path": item.prompt_audio_path,
                         "prompt_text": item.prompt_text,
                         "prompt_lang": "ja",
@@ -143,7 +179,11 @@ def prepare_gptsovits_batch(
                 "voice_file",
                 "source_audio_path",
                 "jp_text",
+                "target_language",
+                "target_text",
                 "en_text",
+                "cn_text",
+                "tw_text",
                 "prompt_line_id",
                 "prompt_audio_path",
                 "prompt_text",
@@ -165,11 +205,13 @@ def prepare_gptsovits_batch(
         _build_notes(
             speaker_name=speaker_name,
             reference_mode=reference_mode,
+            target_language=target_language,
             anchor_line_id=anchor_row["line_id"],
             anchor_audio_path=anchor_row["audio_path"],
             anchor_text=anchor_row["jp_text"],
             item_count=len(items),
             anchor_fallback_count=anchor_fallback_count,
+            target_label_zh=target_spec["label_zh"],
         ),
         encoding="utf-8",
         newline="\n",
@@ -184,6 +226,7 @@ def prepare_gptsovits_batch(
         request_table_path=str(request_table_path),
         invoke_script_path=str(invoke_script_path),
         reference_mode=reference_mode,
+        target_language=target_language,
         prompt_line_id=anchor_row["line_id"],
         prompt_audio_path=anchor_row["audio_path"],
         prompt_text=anchor_row["jp_text"],
@@ -194,16 +237,22 @@ def prepare_gptsovits_batch(
             "reference_mode=anchor keeps one Japanese reference line for the whole batch.",
             "reference_mode=per-line uses each row's own JP text and audio as the GPT-SoVITS prompt.",
             "reference_mode=auto prefers per-line prompts, but falls back to the anchor prompt for very short, interjection-like, or 3~10-second-invalid reference lines.",
-            "Preview rows whose English target collapses to punctuation-only text are skipped before batch synthesis.",
+            "Preview rows whose target text collapses to punctuation-only text are skipped before batch synthesis.",
             "Outputs are staged as WAV first for debugging. Convert to OGG only after the spoken English passes QA.",
         ],
     )
 
 
-def _find_speaker_preview(dataset_root: Path, speaker_name: str) -> tuple[Path, list[dict[str, str]]]:
+def _find_speaker_preview(
+    dataset_root: Path,
+    speaker_name: str,
+    *,
+    target_language: TargetLanguage,
+) -> tuple[Path, list[dict[str, str]]]:
     normalized_target = speaker_name.casefold()
+    preview_file = _TARGET_LANGUAGE_SPECS[target_language]["preview_file"]
     for speaker_dir in sorted(path for path in dataset_root.iterdir() if path.is_dir()):
-        preview_path = speaker_dir / "gptsovits" / "preview_en.csv"
+        preview_path = speaker_dir / "gptsovits" / preview_file
         if not preview_path.exists():
             continue
 
@@ -216,7 +265,16 @@ def _find_speaker_preview(dataset_root: Path, speaker_name: str) -> tuple[Path, 
         if current_name.casefold() == normalized_target:
             return speaker_dir, rows
 
-    raise ValueError(f"GPT-SoVITS preview data was not found for speaker: {speaker_name}")
+    raise ValueError(f"GPT-SoVITS preview data was not found for speaker: {speaker_name} / {target_language}")
+
+
+def _row_target_text(row: dict[str, str], *, target_language: TargetLanguage) -> str:
+    explicit_target = (row.get("target_text") or "").strip()
+    if explicit_target:
+        return explicit_target
+
+    text_key = _TARGET_LANGUAGE_SPECS[target_language]["text_key"]
+    return (row.get(text_key) or "").strip()
 
 
 def _pick_prompt_row(rows: list[dict[str, str]], prompt_line_id: str | None) -> dict[str, str]:
@@ -405,11 +463,13 @@ def _build_notes(
     *,
     speaker_name: str,
     reference_mode: ReferenceMode,
+    target_language: TargetLanguage,
     anchor_line_id: str,
     anchor_audio_path: str,
     anchor_text: str,
     item_count: int,
     anchor_fallback_count: int,
+    target_label_zh: str,
 ) -> str:
     mode_lines = {
         "anchor": "整批固定使用一条参考句，最稳，但跨句语气恢复有限。",
@@ -417,9 +477,10 @@ def _build_notes(
         "auto": "优先每句自带参考；如果日语参考太短、太像语气词，或参考音频不在 3~10 秒内，再回退到锚点参考句。",
     }
     return (
-        "# GPT-SoVITS 英文合成批次\n\n"
+        "# GPT-SoVITS 目标语言合成批次\n\n"
         f"- 角色：`{speaker_name}`\n"
         f"- 条目数：`{item_count}`\n"
+        f"- 目标语言：`{target_language}`（{target_label_zh}）\n"
         f"- 参考模式：`{reference_mode}`\n"
         f"- 锚点 line_id：`{anchor_line_id}`\n"
         f"- 锚点音频：`{anchor_audio_path}`\n"
@@ -430,7 +491,7 @@ def _build_notes(
         "1. 先按 GPT-SoVITS 官方 README 启动 `api_v2.py`\n"
         "2. 在当前目录运行 `invoke_api_v2.ps1`\n"
         "3. 生成结果会写到 `outputs/`\n"
-        "4. 先听 WAV，确认英文自然度通过，再决定是否转成 OGG 回灌游戏\n\n"
+        "4. 先听 WAV，确认目标语言听感通过，再决定是否转成 OGG 回灌游戏\n\n"
         "## 什么时候不适合强行每句自带参考\n\n"
         "- 如果某句日文几乎只有语气词，比如 `えっ`、`うむ`、`……`，它能提供的韵律上下文很弱\n"
         f"- 如果参考音频时长不在 `{_REFERENCE_MIN_SECONDS:.0f}~{_REFERENCE_MAX_SECONDS:.0f}` 秒内，GPT-SoVITS `api_v2.py` 也会直接拒绝\n"

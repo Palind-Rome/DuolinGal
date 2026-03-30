@@ -73,7 +73,8 @@ def prepare_gptsovits_reinject(
             target_voice_file=target_voice_file,
             source_output_name=resolved_source_output_name,
             line_id=selected_row.get("line_id", ""),
-            en_text=selected_row.get("en_text", ""),
+            target_text=(selected_row.get("target_text") or selected_row.get("en_text") or ""),
+            target_language=(selected_row.get("target_language") or "en"),
             target_sample_rate=target_sample_rate,
         ),
         encoding="utf-8",
@@ -167,7 +168,9 @@ def prepare_gptsovits_reinject_batch(
                 source_output_name=source_output_name,
                 source_output_path=str(source_output_path),
                 game_ready_voice_path=str(game_ready_voice_path),
-                en_text=(row.get("en_text") or "").strip(),
+                target_text=(row.get("target_text") or row.get("en_text") or "").strip(),
+                target_language=(row.get("target_language") or "").strip() or None,
+                en_text=(row.get("en_text") or "").strip() or None,
                 prompt_source=(row.get("prompt_source") or "").strip() or None,
             )
         )
@@ -373,14 +376,16 @@ def _build_notes(
     target_voice_file: str,
     source_output_name: str,
     line_id: str,
-    en_text: str,
+    target_text: str,
+    target_language: str,
     target_sample_rate: int,
 ) -> str:
     return (
         "# GPT-SoVITS 自动回灌准备\n\n"
         f"- 来源输出：`{source_output_name}`\n"
         f"- 对应 line_id：`{line_id}`\n"
-        f"- 英文文本：`{en_text}`\n"
+        f"- 目标语言：`{target_language}`\n"
+        f"- 目标文本：`{target_text}`\n"
         f"- 目标游戏文件名：`{target_voice_file}`\n"
         f"- 转换目标：`{target_sample_rate} Hz / 单声道 / Ogg Vorbis`\n\n"
         "## 说明\n\n"

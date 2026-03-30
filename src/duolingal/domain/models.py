@@ -278,6 +278,7 @@ class PrepareGptSovitsBatchRequest(BaseModel):
     limit: int = 10
     prompt_line_id: str | None = None
     reference_mode: Literal["anchor", "per-line", "auto"] = "anchor"
+    target_language: Literal["en", "zh-cn", "zh-tw"] = "en"
 
 
 class PrepareGptSovitsTrainingRequest(BaseModel):
@@ -299,6 +300,7 @@ class PrepareGptSovitsProductionRequest(BaseModel):
     min_lines: int = 1
     gpt_sovits_root: str | None = None
     reference_mode: Literal["anchor", "per-line", "auto"] = "auto"
+    target_language: Literal["en", "zh-cn", "zh-tw"] = "en"
     inference_limit: int | None = None
     target_sample_rate: int = 48000
     api_port: int = 9880
@@ -396,6 +398,7 @@ class GptSovitsSpeakerResult(BaseModel):
     output_dir: str
     train_list_path: str
     preview_targets_path: str
+    preview_target_paths: dict[str, str] = Field(default_factory=dict)
     line_count: int
 
 
@@ -413,7 +416,11 @@ class GptSovitsBatchItem(BaseModel):
     voice_file: str
     source_audio_path: str
     jp_text: str
-    en_text: str
+    target_text: str
+    target_language: Literal["en", "zh-cn", "zh-tw"] = "en"
+    en_text: str | None = None
+    cn_text: str | None = None
+    tw_text: str | None = None
     output_file_name: str
     prompt_line_id: str
     prompt_audio_path: str
@@ -430,6 +437,7 @@ class GptSovitsBatchResult(BaseModel):
     request_table_path: str
     invoke_script_path: str
     reference_mode: Literal["anchor", "per-line", "auto"] = "anchor"
+    target_language: Literal["en", "zh-cn", "zh-tw"] = "en"
     prompt_line_id: str
     prompt_audio_path: str
     prompt_text: str
@@ -467,6 +475,7 @@ class GptSovitsProductionSpeakerPlan(BaseModel):
     line_count: int
     preview_count: int
     batch_limit: int
+    target_language: Literal["en", "zh-cn", "zh-tw"] = "en"
     prompt_line_id: str | None = None
     experiment_name: str
     training_root: str
@@ -486,6 +495,7 @@ class GptSovitsProductionPreparationResult(BaseModel):
     combined_override_root: str
     api_port: int
     sync_game_root: bool
+    target_language: Literal["en", "zh-cn", "zh-tw"] = "en"
     speaker_count: int
     speakers: list[GptSovitsProductionSpeakerPlan] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
@@ -582,7 +592,9 @@ class GptSovitsReinjectBatchItem(BaseModel):
     source_output_name: str
     source_output_path: str
     game_ready_voice_path: str
-    en_text: str
+    target_text: str
+    target_language: str | None = None
+    en_text: str | None = None
     prompt_source: Literal["anchor", "self", "anchor-fallback"] | None = None
 
 
