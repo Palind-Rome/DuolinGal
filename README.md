@@ -1,6 +1,28 @@
+<div align="center">
+
+<img src="./image/Logo.png" alt="DuolinGal" width="300" /> 
+
 # DuolinGal
 
+**面向 KiriKiri Z galgame 的本地优先语音研究工具链**
+
+[![Python 3.10‑3.13](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![GitHub stars](https://img.shields.io/github/stars/Palind-Rome/DuolinGal?style=social)](https://github.com/Palind-Rome/DuolinGal)
+
+[快速开始](#快速开始) · [推荐工作流](#当前推荐工作流) · [文档导航](#文档导航) · [本地 API](#本地-api) · [仓库结构](#仓库结构)
+
+</div>
+
+---
+
 DuolinGal 是一套面向 KiriKiri Z galgame 的本地优先研究工具链。  
+它把“资源提取 -> 台词对齐 -> 角色数据集导出 -> GPT-SoVITS 训练/量产 -> 游戏补丁回灌”串成了一条可复现的工程工作流，适合做：
+
+- 英文配音补丁
+- 中文配音补丁
+- 角色级 TTS 研究与批量验证
+
 当前项目重点已经从“能不能做”推进到了“怎样稳定地做出整作英文配音补丁”，并且已经在《千恋＊万花》上跑通：
 
 - 资源提取与脚本反编译
