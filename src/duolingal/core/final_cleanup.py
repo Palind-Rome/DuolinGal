@@ -6,6 +6,7 @@ import re
 import shutil
 from pathlib import Path
 
+from duolingal.config import REPO_ROOT
 from duolingal.core.workspace import load_project_manifest
 from duolingal.domain.models import FinalCleanupCandidateItem, FinalCleanupPreparationResult
 
@@ -87,7 +88,7 @@ def prepare_final_cleanup(
 
     apply_script_path.write_text(_build_apply_script(cleanup_root), encoding="utf-8", newline="\n")
     rebuild_patch_script_path.write_text(
-        _build_rebuild_patch_script(cleanup_root, resolved_project_root),
+        _build_rebuild_patch_script(cleanup_root, REPO_ROOT),
         encoding="utf-8",
         newline="\n",
     )

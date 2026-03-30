@@ -323,6 +323,8 @@ class GptSovitsProductionPreparationTests(unittest.TestCase):
 
             apply_script = (cleanup_root / "scripts" / "apply-reviewed-removals.ps1").read_text(encoding="utf-8")
             self.assertIn("cleanup-review.csv", apply_script)
+            rebuild_script = (cleanup_root / "scripts" / "rebuild-patch-from-clean-copy.ps1").read_text(encoding="utf-8")
+            self.assertIn(str(Path(__file__).resolve().parents[1]), rebuild_script)
 
     def _create_speaker_dataset(
         self,
