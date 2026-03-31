@@ -148,6 +148,7 @@ def create_app() -> FastAPI:
                 request.project_root,
                 request.source_root,
                 archive_name=request.archive_name,
+                staging_namespace=request.staging_namespace,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

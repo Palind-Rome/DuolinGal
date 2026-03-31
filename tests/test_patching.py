@@ -37,6 +37,7 @@ class PatchPreparationTests(unittest.TestCase):
             script_text = (projects_root / "senren-patch" / "patch-build" / "pack-patch2.ps1").read_text(encoding="utf-8")
             self.assertIn("$PSScriptRoot", script_text)
             self.assertIn("Xp3Pack.exe", script_text)
+            self.assertIn("Split-Path $PSScriptRoot -Parent", script_text)
 
     def test_prepare_patch_staging_preserves_subdirectories(self) -> None:
         with temporary_workspace() as temp_dir:
@@ -58,6 +59,33 @@ class PatchPreparationTests(unittest.TestCase):
 
             self.assertEqual(result.archive_name, "patch9")
             self.assertTrue((projects_root / "senren-patch-nested" / "patch-build" / "patch9" / "voice" / "line001.ogg").exists())
+
+    def test_prepare_patch_staging_uses_namespace_subdirectory(self) -> None:
+        with temporary_workspace() as temp_dir:
+            game_root = temp_dir / "game"
+            projects_root = temp_dir / "projects"
+            source_root = temp_dir / "override"
+            source_root.mkdir(parents=True, exist_ok=True)
+
+            for name in ("voice.xp3", "scn.xp3", "patch.xp3", "KAGParserEx.dll", "psbfile.dll", "senrenbanka.exe"):
+                touch(game_root / name)
+
+            (source_root / "mur001_001.ogg").write_bytes(b"dummy")
+
+            analysis = analyze_game_directory(game_root)
+            manifest = initialize_project_workspace(analysis, project_id="senren-patch-namespaced", projects_root=projects_root)
+
+            result = prepare_patch_staging(
+                manifest.workspace_path,
+                source_root,
+                archive_name="patch2",
+                staging_namespace="all-cast-zh-cn-v1",
+            )
+
+            expected_root = projects_root / "senren-patch-namespaced" / "patch-build" / "all-cast-zh-cn-v1"
+            self.assertEqual(result.staging_root, str(expected_root))
+            self.assertTrue((expected_root / "patch2" / "mur001_001.ogg").exists())
+            self.assertTrue((expected_root / "pack-patch2.ps1").exists())
 
 
 if __name__ == "__main__":

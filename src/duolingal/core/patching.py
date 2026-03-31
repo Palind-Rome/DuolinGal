@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 
 from duolingal.core.workspace import load_project_manifest
 from duolingal.domain.models import PatchPreparationResult
+
+_STAGING_NAMESPACE_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 def prepare_patch_staging(
@@ -13,6 +16,7 @@ def prepare_patch_staging(
     source_root: str | Path,
     *,
     archive_name: str | None = None,
+    staging_namespace: str | None = None,
 ) -> PatchPreparationResult:
     manifest = load_project_manifest(project_root)
     resolved_project_root = Path(manifest.workspace_path).resolve()
@@ -25,6 +29,9 @@ def prepare_patch_staging(
 
     resolved_archive_name = archive_name or _default_archive_name(manifest.resource_packages)
     staging_root = resolved_project_root / "patch-build"
+    normalized_namespace = _normalize_staging_namespace(staging_namespace)
+    if normalized_namespace is not None:
+        staging_root = staging_root / normalized_namespace
     archive_staging_dir = staging_root / resolved_archive_name
     if archive_staging_dir.exists():
         shutil.rmtree(archive_staging_dir)
@@ -87,18 +94,29 @@ def _default_archive_name(resource_packages: list[str]) -> str:
     return "patch"
 
 
+def _normalize_staging_namespace(staging_namespace: str | None) -> str | None:
+    if staging_namespace is None:
+        return None
+    normalized = _STAGING_NAMESPACE_RE.sub("-", staging_namespace.strip()).strip(".-")
+    return normalized or None
+
+
 def _build_pack_script(archive_name: str) -> str:
     return "\n".join(
         [
             "$ErrorActionPreference = 'Stop'",
             f"$archiveName = '{archive_name}'",
-            "$tool = Join-Path $PSScriptRoot 'Xp3Pack.exe'",
+            "$toolCandidates = @(",
+            "  (Join-Path $PSScriptRoot 'Xp3Pack.exe'),",
+            "  (Join-Path (Split-Path $PSScriptRoot -Parent) 'Xp3Pack.exe')",
+            ")",
+            "$tool = $toolCandidates | Where-Object { Test-Path $_ -PathType Leaf } | Select-Object -First 1",
             "$stagingDir = Join-Path $PSScriptRoot $archiveName",
             "if (-not (Test-Path $stagingDir -PathType Container)) {",
             "  throw \"Archive staging directory not found: $stagingDir\"",
             "}",
-            "if (-not (Test-Path $tool -PathType Leaf)) {",
-            "  throw \"Xp3Pack.exe was not found: $tool\"",
+            "if (-not $tool) {",
+            "  throw \"Xp3Pack.exe was not found next to the pack script or its parent directory.\"",
             "}",
             "& $tool $archiveName",
         ]

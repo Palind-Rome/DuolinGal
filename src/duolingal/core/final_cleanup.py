@@ -44,6 +44,9 @@ _INTERJECTION_WORDS = {
 _WEAK_JP_RE = re.compile(r"^[ぁ-んァ-ヶーっッ゛゜!?！？…。、～〜・「」『』（）()\-—―\s]+$")
 _NON_ALPHA_RE = re.compile(r"[^A-Za-z0-9]+")
 _TEMP_NAME_RE = re.compile(r"^\.(?:gptsovits-ogg-|tmp-)")
+_TARGET_TEXT_SIGNAL_RE = re.compile(r"[A-Za-z0-9\u4E00-\u9FFF\u3400-\u4DBFぁ-んァ-ヶー]")
+_CJK_INTERJECTION_CHAR_SET = set("啊呀哎诶欸嗯唔哦喔噢呃哈嘿哼啧嗷呜喵汪咦哇噜")
+_CJK_PUNCTUATION_RE = re.compile(r"[！？!?…。．，,、～〜・「」『』（）()\-—―…\s]")
 
 
 def prepare_final_cleanup(
@@ -63,6 +66,10 @@ def prepare_final_cleanup(
         raise ValueError(f"Combined override root does not exist: {combined_override_root}")
 
     cleanup_root = resolved_project_root / "tts-release" / cleanup_name
+    patch_staging_namespace = _build_cleanup_patch_staging_namespace(
+        production_name=production_name,
+        cleanup_name=cleanup_name,
+    )
     source_root = cleanup_root / "source" / "unencrypted"
     review_root = cleanup_root / "review"
     scripts_root = cleanup_root / "scripts"
@@ -88,7 +95,7 @@ def prepare_final_cleanup(
 
     apply_script_path.write_text(_build_apply_script(cleanup_root), encoding="utf-8", newline="\n")
     rebuild_patch_script_path.write_text(
-        _build_rebuild_patch_script(cleanup_root, REPO_ROOT),
+        _build_rebuild_patch_script(cleanup_root, REPO_ROOT, patch_staging_namespace=patch_staging_namespace),
         encoding="utf-8",
         newline="\n",
     )
@@ -159,7 +166,11 @@ def _collect_candidates(state: dict[str, object]) -> list[FinalCleanupCandidateI
                 voice_file = (row.get("voice_file") or "").strip()
                 if not voice_file:
                     continue
+                target_language = (row.get("target_language") or "en").strip() or "en"
+                target_text = _resolve_target_text(row, target_language=target_language)
                 reasons = _classify_candidate(
+                    target_text=target_text,
+                    target_language=target_language,
                     en_text=(row.get("en_text") or "").strip(),
                     jp_text=(row.get("jp_text") or "").strip(),
                 )
@@ -170,6 +181,8 @@ def _collect_candidates(state: dict[str, object]) -> list[FinalCleanupCandidateI
                         speaker_name=speaker_name,
                         line_id=(row.get("line_id") or "").strip(),
                         voice_file=voice_file,
+                        target_language=target_language,
+                        target_text=target_text,
                         en_text=(row.get("en_text") or "").strip(),
                         jp_text=(row.get("jp_text") or "").strip(),
                         reason_codes=reasons,
@@ -180,16 +193,33 @@ def _collect_candidates(state: dict[str, object]) -> list[FinalCleanupCandidateI
     return candidates
 
 
-def _classify_candidate(*, en_text: str, jp_text: str) -> list[str]:
+def _resolve_target_text(row: dict[str, str], *, target_language: str) -> str:
+    direct_target = (row.get("target_text") or "").strip()
+    if direct_target:
+        return direct_target
+    if target_language == "zh-cn":
+        return (row.get("cn_text") or "").strip()
+    if target_language == "zh-tw":
+        return (row.get("tw_text") or "").strip()
+    return (row.get("en_text") or "").strip()
+
+
+def _classify_candidate(*, target_text: str, target_language: str, en_text: str, jp_text: str) -> list[str]:
     reasons: list[str] = []
 
-    normalized_en = en_text.strip()
-    if normalized_en and not any(char.isalnum() for char in normalized_en):
-        reasons.append("english_punctuation_only")
+    normalized_target = target_text.strip()
+    if normalized_target and not _TARGET_TEXT_SIGNAL_RE.search(normalized_target):
+        reasons.append("target_punctuation_only")
 
-    english_words = [token.casefold() for token in _NON_ALPHA_RE.split(normalized_en) if token]
-    if english_words and len(english_words) <= 2 and all(token in _INTERJECTION_WORDS for token in english_words):
-        reasons.append("english_interjection_only")
+    if target_language == "en":
+        normalized_en = en_text.strip() or normalized_target
+        english_words = [token.casefold() for token in _NON_ALPHA_RE.split(normalized_en) if token]
+        if english_words and len(english_words) <= 2 and all(token in _INTERJECTION_WORDS for token in english_words):
+            reasons.append("english_interjection_only")
+    elif target_language in {"zh-cn", "zh-tw"}:
+        compact_target = _CJK_PUNCTUATION_RE.sub("", normalized_target)
+        if compact_target and len(compact_target) <= 3 and all(char in _CJK_INTERJECTION_CHAR_SET for char in compact_target):
+            reasons.append("cjk_interjection_only")
 
     normalized_jp = jp_text.strip()
     jp_compact = re.sub(r"[!?！？…。、～〜・「」『』（）()\-—―\s]", "", normalized_jp)
@@ -204,6 +234,8 @@ def _write_candidates_csv(path: Path, candidates: list[FinalCleanupCandidateItem
         "speaker_name",
         "line_id",
         "voice_file",
+        "target_language",
+        "target_text",
         "en_text",
         "jp_text",
         "reason_codes",
@@ -220,6 +252,8 @@ def _write_candidates_csv(path: Path, candidates: list[FinalCleanupCandidateItem
                 "speaker_name": item.speaker_name,
                 "line_id": item.line_id,
                 "voice_file": item.voice_file,
+                "target_language": item.target_language,
+                "target_text": item.target_text,
                 "en_text": item.en_text,
                 "jp_text": item.jp_text,
                 "reason_codes": "|".join(item.reason_codes),
@@ -262,7 +296,7 @@ Import-Csv -Path $reviewSheet -Encoding UTF8 | ForEach-Object {{
 """
 
 
-def _build_rebuild_patch_script(cleanup_root: Path, repo_root: Path) -> str:
+def _build_rebuild_patch_script(cleanup_root: Path, repo_root: Path, *, patch_staging_namespace: str) -> str:
     cleanup_root_text = str(cleanup_root)
     repo_root_text = str(repo_root)
     return f"""$ErrorActionPreference = 'Stop'
@@ -273,8 +307,12 @@ $projectRoot = Split-Path (Split-Path $cleanupRoot -Parent) -Parent
 
 Set-Location $repoRoot
 $env:PYTHONPATH = 'src'
-python -m duolingal prepare-patch $projectRoot $sourceRoot --archive-name patch2
+python -m duolingal prepare-patch $projectRoot $sourceRoot --archive-name patch2 --staging-namespace '{patch_staging_namespace}'
 """
+
+
+def _build_cleanup_patch_staging_namespace(*, production_name: str, cleanup_name: str) -> str:
+    return f"{production_name}-{cleanup_name}"
 
 
 def _build_cleanup_readme(*, candidate_count: int, copied_file_count: int, source_root: Path) -> str:

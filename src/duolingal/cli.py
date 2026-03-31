@@ -65,6 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     patch_parser.add_argument("project_root", help="Initialized project workspace.")
     patch_parser.add_argument("source_root", help="Override tree to copy into the patch archive staging directory.")
     patch_parser.add_argument("--archive-name", help="Optional archive name override, such as patch2.")
+    patch_parser.add_argument("--staging-namespace", help="Optional patch-build subdirectory name, such as all-cast-v1.")
 
     dataset_parser = subparsers.add_parser("export-dataset", help="Export a per-speaker TTS dataset from lines.csv and voice files.")
     dataset_parser.add_argument("project_root", help="Initialized project workspace.")
@@ -246,6 +247,7 @@ def main(argv: list[str] | None = None) -> int:
             args.project_root,
             args.source_root,
             archive_name=args.archive_name,
+            staging_namespace=args.staging_namespace,
         )
         _emit_json(result.model_dump(mode="json", exclude_none=True))
         return 0

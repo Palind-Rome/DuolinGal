@@ -141,11 +141,13 @@ class ProjectService:
         source_root: str | Path,
         *,
         archive_name: str | None = None,
+        staging_namespace: str | None = None,
     ) -> PatchPreparationResult:
         return prepare_patch_staging(
             project_root,
             source_root,
             archive_name=archive_name,
+            staging_namespace=staging_namespace,
         )
 
     def export_dataset(

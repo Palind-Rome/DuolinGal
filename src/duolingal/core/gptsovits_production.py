@@ -93,6 +93,8 @@ def prepare_gptsovits_production(
     scripts_dir = production_root / "scripts"
     logs_dir = production_root / "logs"
     combined_override_root = production_root / "game-ready" / "unencrypted"
+    patch_archive_name = _default_patch_archive_name(resolved_project_root)
+    patch_staging_namespace = production_name
     scripts_dir.mkdir(parents=True, exist_ok=True)
     logs_dir.mkdir(parents=True, exist_ok=True)
     combined_override_root.mkdir(parents=True, exist_ok=True)
@@ -149,6 +151,8 @@ def prepare_gptsovits_production(
         "target_sample_rate": target_sample_rate,
         "api_port": api_port,
         "sync_game_root": sync_game_root,
+        "patch_archive_name": patch_archive_name,
+        "patch_staging_namespace": patch_staging_namespace,
         "gpt_epochs": gpt_epochs,
         "sovits_epochs": sovits_epochs,
         "combined_override_root": str(combined_override_root),
@@ -169,6 +173,8 @@ def prepare_gptsovits_production(
             reference_mode=reference_mode,
             inference_limit=inference_limit,
             sync_game_root=sync_game_root,
+            patch_archive_name=patch_archive_name,
+            patch_staging_namespace=patch_staging_namespace,
         ),
         encoding="utf-8",
         newline="\n",
@@ -203,6 +209,8 @@ def run_gptsovits_production(production_root: str | Path) -> GptSovitsProduction
     plan = json.loads(queue_path.read_text(encoding="utf-8"))
     project_root = Path(plan["project_root"]).resolve()
     combined_override_root = Path(plan["combined_override_root"]).resolve()
+    patch_archive_name = str(plan.get("patch_archive_name") or _default_patch_archive_name(project_root))
+    patch_staging_namespace = str(plan.get("patch_staging_namespace") or resolved_production_root.name)
     combined_override_root.mkdir(parents=True, exist_ok=True)
     logs_dir = Path(plan["logs_dir"]).resolve()
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -503,7 +511,12 @@ def run_gptsovits_production(production_root: str | Path) -> GptSovitsProduction
         last_event="Rebuilding project patch staging from combined overrides.",
         status_path=status_path,
     )
-    patch_result = prepare_patch_staging(project_root, combined_override_root, archive_name=None)
+    patch_result = prepare_patch_staging(
+        project_root,
+        combined_override_root,
+        archive_name=patch_archive_name,
+        staging_namespace=patch_staging_namespace,
+    )
     synced_game_root = None
     if plan.get("sync_game_root"):
         print("[queue] Syncing combined overrides into the real game root")
@@ -638,6 +651,12 @@ def _derive_production_name(
     return f"subset-{digest}-v1" if target_language == "en" else f"subset-{digest}-{suffix}-v1"
 
 
+def _default_patch_archive_name(project_root: Path) -> str:
+    manifest = load_project_manifest(project_root)
+    resource_packages = [package.lower() for package in manifest.resource_packages]
+    return "patch2" if "patch.xp3" in resource_packages else "patch"
+
+
 def _build_run_script(queue_path: Path, *, resolved_repo_root: Path) -> str:
     return f"""$ErrorActionPreference = 'Stop'
 $env:PYTHONNOUSERSITE = '1'
@@ -663,6 +682,8 @@ def _build_production_readme(
     reference_mode: str,
     inference_limit: int | None,
     sync_game_root: bool,
+    patch_archive_name: str,
+    patch_staging_namespace: str,
 ) -> str:
     target_label_zh = _TARGET_LANGUAGE_SPECS[target_language]["label_zh"]
     limit_text = f"全部{target_label_zh}预览句" if inference_limit is None else f"每个角色前 {inference_limit} 句{target_label_zh}预览"
@@ -683,7 +704,7 @@ def _build_production_readme(
         "## 说明\n\n"
         "- 这条队列会顺序执行：前处理 -> GPT -> SoVITS -> 切权重 -> 批量推理 -> 转 OGG\n"
         "- 最终会把所有完成角色的 OGG 合并成一棵总覆盖树\n"
-        "- 跑完全队列后，会用这棵总覆盖树重建一次项目级 `patch-build`\n"
+        f"- 跑完全队列后，会在 `patch-build/{patch_staging_namespace}/` 下重建一次项目级 `{patch_archive_name}` 补丁目录\n"
         "- 如果个别英文句子退化成纯标点或被 `/tts` 判为无效文本，队列会记录并跳过该单句，而不是整队中断\n"
         "- 队列运行中会持续更新 `production-state.json` 和 `production-status.txt`\n"
     )

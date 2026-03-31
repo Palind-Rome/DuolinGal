@@ -257,6 +257,7 @@ class PreparePatchRequest(BaseModel):
     project_root: str
     source_root: str
     archive_name: str | None = None
+    staging_namespace: str | None = None
 
 
 class ExportDatasetRequest(BaseModel):
@@ -528,6 +529,8 @@ class FinalCleanupCandidateItem(BaseModel):
     speaker_name: str
     line_id: str
     voice_file: str
+    target_language: str = "en"
+    target_text: str = ""
     en_text: str
     jp_text: str
     reason_codes: list[str] = Field(default_factory=list)

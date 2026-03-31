@@ -55,6 +55,8 @@ class GptSovitsProductionPreparationTests(unittest.TestCase):
             queue_payload = json.loads(Path(result.queue_path).read_text(encoding="utf-8"))
             self.assertEqual(queue_payload["gpt_sovits_root"], str(gpt_root.resolve()))
             self.assertEqual(queue_payload["sync_game_root"], True)
+            self.assertEqual(queue_payload["patch_archive_name"], "patch2")
+            self.assertEqual(queue_payload["patch_staging_namespace"], "all-cast-v1")
             self.assertEqual(len(queue_payload["speakers"]), 2)
             self.assertEqual(queue_payload["speakers"][0]["batch_limit"], 1)
 
@@ -66,6 +68,7 @@ class GptSovitsProductionPreparationTests(unittest.TestCase):
             readme_text = Path(result.readme_path).read_text(encoding="utf-8")
             self.assertIn("夜间量产计划", readme_text)
             self.assertIn("前处理 -> GPT -> SoVITS", readme_text)
+            self.assertIn("patch-build/all-cast-v1/", readme_text)
 
     def test_prepare_gptsovits_production_cli_outputs_summary_json(self) -> None:
         with temporary_workspace() as temp_dir:
@@ -325,6 +328,100 @@ class GptSovitsProductionPreparationTests(unittest.TestCase):
             self.assertIn("cleanup-review.csv", apply_script)
             rebuild_script = (cleanup_root / "scripts" / "rebuild-patch-from-clean-copy.ps1").read_text(encoding="utf-8")
             self.assertIn(str(Path(__file__).resolve().parents[1]), rebuild_script)
+            self.assertIn("--staging-namespace 'all-cast-v1-final-cleanup-v1'", rebuild_script)
+
+    def test_prepare_final_cleanup_uses_target_language_text_for_zh_cn_candidates(self) -> None:
+        with temporary_workspace() as temp_dir:
+            game_root = temp_dir / "game"
+            projects_root = temp_dir / "projects"
+
+            for name in ("voice.xp3", "scn.xp3", "patch.xp3", "KAGParserEx.dll", "psbfile.dll", "senrenbanka.exe"):
+                touch(game_root / name)
+
+            analysis = analyze_game_directory(game_root)
+            initialize_project_workspace(analysis, project_id="senren-final-cleanup-zh", projects_root=projects_root)
+            project_root = projects_root / "senren-final-cleanup-zh"
+
+            production_root = project_root / "tts-production" / "all-cast-zh-cn-v1"
+            override_root = production_root / "game-ready" / "unencrypted"
+            override_root.mkdir(parents=True, exist_ok=True)
+            (override_root / "weak001.ogg").write_bytes(b"weak")
+
+            batch_dir = project_root / "tts-dataset" / "ムラサメ" / "gptsovits" / "batches" / "first-1-zh-cn"
+            batch_dir.mkdir(parents=True, exist_ok=True)
+            with (batch_dir / "requests.csv").open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(
+                    handle,
+                    fieldnames=[
+                        "order_index",
+                        "line_id",
+                        "voice_file",
+                        "source_audio_path",
+                        "jp_text",
+                        "target_language",
+                        "target_text",
+                        "en_text",
+                        "cn_text",
+                        "tw_text",
+                        "prompt_line_id",
+                        "prompt_audio_path",
+                        "prompt_text",
+                        "prompt_source",
+                        "output_file_name",
+                        "output_path",
+                    ],
+                )
+                writer.writeheader()
+                writer.writerow(
+                    {
+                        "order_index": "1",
+                        "line_id": "scene001-0001",
+                        "voice_file": "weak001.ogg",
+                        "source_audio_path": "",
+                        "jp_text": "「ふん」",
+                        "target_language": "zh-cn",
+                        "target_text": "嗯。",
+                        "en_text": "Hmph.",
+                        "cn_text": "嗯。",
+                        "tw_text": "嗯。",
+                        "prompt_line_id": "scene001-0001",
+                        "prompt_audio_path": "",
+                        "prompt_text": "「ふん」",
+                        "prompt_source": "self",
+                        "output_file_name": "weak001.wav",
+                        "output_path": "",
+                    }
+                )
+
+            state_payload = {
+                "completed_speakers": [
+                    {
+                        "speaker_name": "ムラサメ",
+                        "experiment_name": "mur-v2",
+                        "batch_dir": str(batch_dir),
+                        "generated_count": 1,
+                        "converted_count": 1,
+                        "gpt_weight_path": "gpt.ckpt",
+                        "sovits_weight_path": "sovits.pth",
+                    }
+                ]
+            }
+            (production_root / "production-state.json").write_text(
+                json.dumps(state_payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+                newline="\n",
+            )
+
+            result = prepare_final_cleanup(
+                project_root,
+                production_name="all-cast-zh-cn-v1",
+                cleanup_name="final-cleanup-zh-cn-v1",
+            )
+
+            review_sheet = Path(result.review_sheet_path).read_text(encoding="utf-8")
+            self.assertIn("zh-cn", review_sheet)
+            self.assertIn("嗯。", review_sheet)
+            self.assertIn("cjk_interjection_only", review_sheet)
 
     def _create_speaker_dataset(
         self,
