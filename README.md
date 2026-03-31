@@ -263,7 +263,7 @@ run-gptsovits-production
   -> 审核 cleanup-review.ready.csv
   -> 在副本上删除不该覆盖原音的 .ogg
   -> rebuild-patch-from-clean-copy.ps1
-  -> patch-build/pack-patch2.ps1
+  -> patch-build/<CLEANUP_PATCH_DIR>/pack-patch2.ps1
   -> patch2.xp3
 ```
 
@@ -286,9 +286,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<PROJECT_ROOT>\tts-release\
 powershell -NoProfile -ExecutionPolicy Bypass -File "<PROJECT_ROOT>\tts-release\final-cleanup-v1\scripts\rebuild-patch-from-clean-copy.ps1"
 ```
 
-最后进入：
+最后进入清理后补丁对应的 namespaced 目录，例如：
 
-- `<PROJECT_ROOT>\patch-build`
+- 英文：`<PROJECT_ROOT>\patch-build\all-cast-v1-final-cleanup-v1`
+- 简中：`<PROJECT_ROOT>\patch-build\all-cast-zh-cn-v1-final-cleanup-zh-cn-v1`
 
 执行：
 
@@ -298,7 +299,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\pack-patch2.ps1
 
 得到最终的：
 
-- `<PROJECT_ROOT>\patch-build\patch2.xp3`
+- 英文清理版：`<PROJECT_ROOT>\patch-build\all-cast-v1-final-cleanup-v1\patch2.xp3`
+- 简中清理版：`<PROJECT_ROOT>\patch-build\all-cast-zh-cn-v1-final-cleanup-zh-cn-v1\patch2.xp3`
+
+说明：
+
+- 最终补丁文件名仍然必须叫 `patch2.xp3`
+- 但现在不同语言/流程会放进不同文件夹，不再互相覆盖
 
 ## GPT-SoVITS 量产队列实际会做什么
 

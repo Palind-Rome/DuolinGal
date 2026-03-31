@@ -145,8 +145,18 @@ python -m duolingal run-gptsovits-production "<PROJECT_ROOT>\tts-production\all-
 
 整条队列跑完后：
 
-- 会用这棵总覆盖树重建项目级 `patch-build`
+- 会用这棵总覆盖树重建项目级 `patch-build/<PLAN_NAME>/`
 - 如果启用了 `--sync-game-root`，还会同步到真实游戏目录的 `unencrypted/`
+
+说明：
+
+- 最终游戏识别的补丁名仍然是 `patch2.xp3`
+- 但不同计划现在会各自写到不同文件夹，例如：
+  - `patch-build/all-cast-v1/patch2.xp3`
+  - `patch-build/all-cast-zh-cn-v1/patch2.xp3`
+- 最终清理后的 release 版本也同样会继续分目录，例如：
+  - `patch-build/all-cast-v1-final-cleanup-v1/patch2.xp3`
+  - `patch-build/all-cast-zh-cn-v1-final-cleanup-zh-cn-v1/patch2.xp3`
 
 ## 为什么叫“可恢复”
 
@@ -237,6 +247,8 @@ tts-production/all-cast-zh-cn-v1/
 4. 转换结束后删除这个临时目录
 
 它只是一个**稳定性补丁**，不是新的长期产物目录。
+
+## `production-status.txt` 里会写什么
 
 里面会写：
 
