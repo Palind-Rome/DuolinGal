@@ -467,5 +467,22 @@ DuolinGal/
 - 一条已经打通的 **工程化研究工作流**
 - 一个能持续产出成果的 **本地量产入口**
 
+  ## Star History
+
+<picture>
+  <source
+    media="(prefers-color-scheme: dark)"
+    srcset="https://api.star-history.com/image?repos=Palind-Rome/DuolinGal&type=Date&theme=dark"
+  />
+  <source
+    media="(prefers-color-scheme: light)"
+    srcset="https://api.star-history.com/image?repos=Palind-Rome/DuolinGal&type=Date"
+  />
+  <img
+    alt="Star History Chart"
+    src="https://api.star-history.com/image?repos=Palind-Rome/DuolinGal&type=Date"
+  />
+</picture>
+
 ## License
 [MIT License](LICENSE)
