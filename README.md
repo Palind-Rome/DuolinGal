@@ -178,6 +178,12 @@ $env:PYTHONPATH='src'
 python -m duolingal prepare-gptsovits-train "<PROJECT_ROOT>" --speaker "<SPEAKER_NAME>"
 ```
 
+说明：
+
+- 如果 `configs/toolchain.local.json` 里已经配置了 `gpt-sovits.path` 指向本地 `api_v2.py`，这条命令会自动读取对应的 GPT-SoVITS 仓库根目录
+- 如果你用的不是默认配置文件，可以额外传 `--config "<CONFIG_PATH>"`
+- `--gpt-sovits-root "<GPT_SOVITS_DIR>"` 仍然可用，并且优先级高于配置文件
+
 然后进入生成出来的：
 
 - `tts-training/<EXPERIMENT_NAME>/scripts/`
@@ -223,6 +229,8 @@ prepare-gptsovits-production
 $env:PYTHONPATH='src'
 python -m duolingal prepare-gptsovits-production "<PROJECT_ROOT>" --target-language zh-cn
 ```
+
+如果 `gpt-sovits.path` 已经写在 `configs/toolchain.local.json` 里，这里同样会自动读取；也可以额外传 `--config "<CONFIG_PATH>"` 或显式传 `--gpt-sovits-root "<GPT_SOVITS_DIR>"` 覆盖。
 
 如果只想排部分角色：
 

@@ -498,6 +498,85 @@ class CliTests(unittest.TestCase):
             self.assertTrue((project_root / "patch-build" / "patch2" / "mur001_002.ogg").exists())
             self.assertFalse(stale_patch_file.exists())
 
+    def test_prepare_gptsovits_train_command_reads_configured_gpt_root(self) -> None:
+        with temporary_workspace() as temp_dir:
+            game_root = temp_dir / "game"
+            projects_root = temp_dir / "projects"
+            gpt_root = temp_dir / "tools" / "GPT-SoVITS"
+
+            for name in ("voice.xp3", "scn.xp3", "patch.xp3", "KAGParserEx.dll", "psbfile.dll", "senrenbanka.exe"):
+                touch(game_root / name)
+
+            self._create_fake_gpt_root(gpt_root)
+
+            analysis = analyze_game_directory(game_root)
+            initialize_project_workspace(analysis, project_id="senren-train-config-cli", projects_root=projects_root)
+            project_root = projects_root / "senren-train-config-cli"
+
+            speaker_dir = project_root / "tts-dataset" / "茉子"
+            audio_dir = speaker_dir / "audio"
+            audio_dir.mkdir(parents=True, exist_ok=True)
+            (audio_dir / "mak001_001.ogg").write_bytes(b"ogg-data")
+            (speaker_dir / "metadata.csv").write_text(
+                "line_id,scene_id,order_index,speaker_name,voice_file,audio_path,jp_text,en_text\n"
+                'scene001-0005,scene001,5,茉子,mak001_001.ogg,audio/mak001_001.ogg,「いいよ」,"Sure."\n',
+                encoding="utf-8",
+                newline="\n",
+            )
+
+            config_path = temp_dir / "toolchain.local.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "gpt-sovits": {
+                            "path": str(gpt_root / "api_v2.py"),
+                        }
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+                newline="\n",
+            )
+
+            command_stdout = io.StringIO()
+            with redirect_stdout(command_stdout):
+                exit_code = main(
+                    [
+                        "prepare-gptsovits-train",
+                        str(project_root),
+                        "--speaker",
+                        "茉子",
+                        "--config",
+                        str(config_path),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(command_stdout.getvalue())
+            self.assertEqual(payload["gpt_sovits_root"], str(gpt_root.resolve()))
+
+    def _create_fake_gpt_root(self, gpt_root) -> None:  # type: ignore[no-untyped-def]
+        touch(gpt_root / "api_v2.py")
+        for relative_file in (
+            "GPT_SoVITS/prepare_datasets/1-get-text.py",
+            "GPT_SoVITS/prepare_datasets/2-get-hubert-wav32k.py",
+            "GPT_SoVITS/prepare_datasets/3-get-semantic.py",
+            "GPT_SoVITS/s1_train.py",
+            "GPT_SoVITS/s2_train.py",
+            "GPT_SoVITS/pretrained_models/gsv-v2final-pretrained/s1bert25hz-5kh-longer-epoch=12-step=369668.ckpt",
+            "GPT_SoVITS/pretrained_models/gsv-v2final-pretrained/s2G2333k.pth",
+            "GPT_SoVITS/pretrained_models/gsv-v2final-pretrained/s2D2333k.pth",
+        ):
+            touch(gpt_root / relative_file)
+
+        (gpt_root / "GPT_SoVITS" / "pretrained_models" / "chinese-roberta-wwm-ext-large").mkdir(
+            parents=True, exist_ok=True
+        )
+        (gpt_root / "GPT_SoVITS" / "pretrained_models" / "chinese-hubert-base").mkdir(
+            parents=True, exist_ok=True
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -45,6 +45,7 @@ def prepare_gptsovits_production(
     *,
     speakers: list[str] | None = None,
     min_lines: int = 1,
+    config_path: str | Path | None = None,
     gpt_sovits_root: str | Path | None = None,
     reference_mode: str = "auto",
     target_language: str = "en",
@@ -105,6 +106,7 @@ def prepare_gptsovits_production(
         training_result = prepare_gptsovits_training(
             resolved_project_root,
             speaker["speaker_name"],
+            config_path=config_path,
             gpt_sovits_root=gpt_sovits_root,
             gpt_epochs=gpt_epochs,
             sovits_epochs=sovits_epochs,

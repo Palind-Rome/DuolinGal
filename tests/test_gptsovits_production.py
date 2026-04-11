@@ -158,6 +158,47 @@ class GptSovitsProductionPreparationTests(unittest.TestCase):
             self.assertEqual(prompt_line_ids["レナ"], "006・レナ登場ver1.03.ks-0436")
             self.assertEqual(prompt_line_ids["廉太郎"], "001・アーサー王ver1.07.ks-0346")
 
+    def test_prepare_gptsovits_production_reads_gpt_root_from_toolchain_config(self) -> None:
+        with temporary_workspace() as temp_dir:
+            game_root = temp_dir / "game"
+            projects_root = temp_dir / "projects"
+            gpt_root = temp_dir / "tools" / "GPT-SoVITS"
+
+            for name in ("voice.xp3", "scn.xp3", "patch.xp3", "KAGParserEx.dll", "psbfile.dll", "senrenbanka.exe"):
+                touch(game_root / name)
+
+            self._create_fake_gpt_root(gpt_root)
+
+            analysis = analyze_game_directory(game_root)
+            initialize_project_workspace(analysis, project_id="senren-production-config", projects_root=projects_root)
+            project_root = projects_root / "senren-production-config"
+
+            self._create_speaker_dataset(project_root, "茉子", "mak001_001.ogg", "「いいよ」", "Sure.")
+
+            config_path = temp_dir / "toolchain.local.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "gpt-sovits": {
+                            "path": str(gpt_root / "api_v2.py"),
+                        }
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+                newline="\n",
+            )
+
+            result = prepare_gptsovits_production(
+                project_root,
+                config_path=config_path,
+                inference_limit=5,
+            )
+
+            queue_payload = json.loads(Path(result.queue_path).read_text(encoding="utf-8"))
+            self.assertEqual(queue_payload["gpt_sovits_root"], str(gpt_root.resolve()))
+
     def test_synthesize_batch_skips_invalid_text_http_errors(self) -> None:
         with temporary_workspace() as temp_dir:
             batch_dir = temp_dir / "batch"
@@ -484,6 +525,7 @@ class GptSovitsProductionPreparationTests(unittest.TestCase):
             )
 
     def _create_fake_gpt_root(self, gpt_root: Path) -> None:
+        touch(gpt_root / "api_v2.py")
         for relative_file in (
             "GPT_SoVITS/prepare_datasets/1-get-text.py",
             "GPT_SoVITS/prepare_datasets/2-get-hubert-wav32k.py",
