@@ -129,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     gptsovits_train_parser.add_argument("project_root", help="Initialized project workspace.")
     gptsovits_train_parser.add_argument("--speaker", required=True, help="Exact speaker_name to prepare.")
+    gptsovits_train_parser.add_argument("--config", help="Optional toolchain config path.")
     gptsovits_train_parser.add_argument("--gpt-sovits-root", help="Optional local GPT-SoVITS repository root override.")
     gptsovits_train_parser.add_argument("--version", choices=["v2"], default="v2", help="Official GPT-SoVITS model family to target.")
     gptsovits_train_parser.add_argument("--gpu", default="0", help="GPU index string, such as 0.")
@@ -145,6 +146,7 @@ def main(argv: list[str] | None = None) -> int:
     gptsovits_production_parser.add_argument("project_root", help="Initialized project workspace.")
     gptsovits_production_parser.add_argument("--speaker", dest="speakers", action="append", help="Optional exact speaker_name filter. Repeat to enqueue more than one role.")
     gptsovits_production_parser.add_argument("--min-lines", type=int, default=1, help="Minimum aligned line count required to keep a speaker in the queue.")
+    gptsovits_production_parser.add_argument("--config", help="Optional toolchain config path.")
     gptsovits_production_parser.add_argument("--gpt-sovits-root", help="Optional local GPT-SoVITS repository root override.")
     gptsovits_production_parser.add_argument("--reference-mode", choices=["anchor", "per-line", "auto"], default="auto", help="How GPT-SoVITS reference audio/text should be chosen during overnight inference.")
     gptsovits_production_parser.add_argument("--target-language", choices=["en", "zh-cn", "zh-tw"], default="en", help="Which translated target text to synthesize during production.")
@@ -310,6 +312,7 @@ def main(argv: list[str] | None = None) -> int:
         result = service.prepare_gptsovits_training(
             args.project_root,
             args.speaker,
+            config_path=args.config,
             gpt_sovits_root=args.gpt_sovits_root,
             version=args.version,
             gpu=args.gpu,
@@ -327,6 +330,7 @@ def main(argv: list[str] | None = None) -> int:
             args.project_root,
             speakers=args.speakers,
             min_lines=args.min_lines,
+            config_path=args.config,
             gpt_sovits_root=args.gpt_sovits_root,
             reference_mode=args.reference_mode,
             target_language=args.target_language,

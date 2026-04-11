@@ -32,8 +32,20 @@ $env:PYTHONPATH='src'
 python -m duolingal prepare-gptsovits-train "<PROJECT_ROOT>" --speaker "<SPEAKER_NAME>"
 ```
 
+如果 `configs/toolchain.local.json` 里已经配置了：
+
+```json
+"gpt-sovits": {
+  "path": "E:/GPT-SoVITS/GPT-SoVITS-v2pro-20250604/api_v2.py"
+}
+```
+
+那么命令会自动把这个 `api_v2.py` 路径解析回 GPT-SoVITS 仓库根目录。  
+如果你想指定另一份配置文件，可以额外传 `--config "<CONFIG_PATH>"`；如果想直接覆盖配置，则传 `--gpt-sovits-root "<GPT_SOVITS_DIR>"`。
+
 可选参数：
 
+- `--config "<CONFIG_PATH>"`
 - `--gpt-sovits-root "<GPT_SOVITS_DIR>"`
 - `--gpu 0`
 - `--full-precision`
@@ -266,7 +278,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\run-train-sovits.ps1
 
 - 生成出来的 `run-prepare-*.ps1`、`run-train-*.ps1`、`train-gpt-launcher.py`
   都会写入当前项目、当前机器可直接执行的绝对路径
-- `prepare-gptsovits-train` 在未显式传入 `--gpt-sovits-root` 时，会按当前仓库结构推断
+- `prepare-gptsovits-train` 在未显式传入 `--gpt-sovits-root` 时，会优先读取
+  `toolchain.local.json` 里的 `gpt-sovits.path`；只有在配置里也没有时，才会按仓库结构推断
   `../tools/GPT-SoVITS`
 
 这在当前本地研究流程里是合理的，但后续如果进入更通用的产品阶段，应当逐步改成：

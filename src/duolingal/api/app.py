@@ -225,6 +225,7 @@ def create_app() -> FastAPI:
             return service.prepare_gptsovits_training(
                 request.project_root,
                 request.speaker_name,
+                config_path=request.config_path,
                 gpt_sovits_root=request.gpt_sovits_root,
                 version=request.version,
                 gpu=request.gpu,
@@ -246,6 +247,7 @@ def create_app() -> FastAPI:
                 request.project_root,
                 speakers=request.speakers,
                 min_lines=request.min_lines,
+                config_path=request.config_path,
                 gpt_sovits_root=request.gpt_sovits_root,
                 reference_mode=request.reference_mode,
                 target_language=request.target_language,

@@ -7,6 +7,7 @@ import re
 import shutil
 from pathlib import Path
 
+from duolingal.core.tool_config import load_toolchain_config
 from duolingal.core.workspace import load_project_manifest
 from duolingal.domain.models import GptSovitsTrainingPreparationResult
 
@@ -15,6 +16,7 @@ def prepare_gptsovits_training(
     project_root: str | Path,
     speaker_name: str,
     *,
+    config_path: str | Path | None = None,
     gpt_sovits_root: str | Path | None = None,
     version: str = "v2",
     gpu: str = "0",
@@ -35,7 +37,11 @@ def prepare_gptsovits_training(
     resolved_project_root = Path(manifest.workspace_path).resolve()
     speaker_dir, rows, current_speaker_name = _find_speaker_dataset(resolved_project_root / "tts-dataset", speaker_name)
 
-    resolved_gpt_root = _resolve_gpt_sovits_root(resolved_project_root, gpt_sovits_root)
+    resolved_gpt_root = _resolve_gpt_sovits_root(
+        resolved_project_root,
+        gpt_sovits_root,
+        config_path=config_path,
+    )
     _validate_gpt_sovits_root(resolved_gpt_root)
 
     prepared_rows = _collect_training_rows(speaker_dir, rows)
@@ -254,12 +260,43 @@ def _find_speaker_dataset(dataset_root: Path, speaker_name: str) -> tuple[Path, 
     raise ValueError(f"Speaker dataset was not found: {speaker_name}")
 
 
-def _resolve_gpt_sovits_root(project_root: Path, gpt_sovits_root: str | Path | None) -> Path:
+def _resolve_gpt_sovits_root(
+    project_root: Path,
+    gpt_sovits_root: str | Path | None,
+    *,
+    config_path: str | Path | None = None,
+) -> Path:
     if gpt_sovits_root is not None:
         return Path(gpt_sovits_root).expanduser().resolve()
 
+    configured_root = _resolve_gpt_sovits_root_from_config(config_path)
+    if configured_root is not None:
+        return configured_root
+
     repo_root = project_root.parents[2]
     return (repo_root.parent / "tools" / "GPT-SoVITS").resolve()
+
+
+def _resolve_gpt_sovits_root_from_config(config_path: str | Path | None) -> Path | None:
+    config = load_toolchain_config(config_path)
+    entry = config.tools.get("gpt-sovits")
+    if entry is None:
+        return None
+
+    configured_path = Path(entry.path).expanduser().resolve()
+    if not configured_path.exists():
+        return None
+
+    search_root = configured_path if configured_path.is_dir() else configured_path.parent
+    for candidate in (search_root, *search_root.parents):
+        if _looks_like_gpt_sovits_root(candidate):
+            return candidate.resolve()
+
+    return search_root.resolve()
+
+
+def _looks_like_gpt_sovits_root(candidate: Path) -> bool:
+    return (candidate / "GPT_SoVITS" / "prepare_datasets" / "1-get-text.py").exists()
 
 
 def _validate_gpt_sovits_root(gpt_sovits_root: Path) -> None:

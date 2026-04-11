@@ -181,6 +181,12 @@ $env:PYTHONPATH='src'
 python -m duolingal prepare-gptsovits-train "<PROJECT_ROOT>" --speaker "<SPEAKER_NAME>"
 ```
 
+Notes:
+
+- If `configs/toolchain.local.json` already has `gpt-sovits.path` pointing at your local `api_v2.py`, this command now resolves the matching GPT-SoVITS repository root automatically.
+- Pass `--config "<CONFIG_PATH>"` if you want to use a non-default toolchain config file.
+- `--gpt-sovits-root "<GPT_SOVITS_DIR>"` is still supported and overrides the config entry.
+
 Then go to the generated:
 
 - `tts-training/<EXPERIMENT_NAME>/scripts/`

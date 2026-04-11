@@ -285,6 +285,7 @@ class PrepareGptSovitsBatchRequest(BaseModel):
 class PrepareGptSovitsTrainingRequest(BaseModel):
     project_root: str
     speaker_name: str
+    config_path: str | None = None
     gpt_sovits_root: str | None = None
     version: Literal["v2"] = "v2"
     gpu: str = "0"
@@ -299,6 +300,7 @@ class PrepareGptSovitsProductionRequest(BaseModel):
     project_root: str
     speakers: list[str] = Field(default_factory=list)
     min_lines: int = 1
+    config_path: str | None = None
     gpt_sovits_root: str | None = None
     reference_mode: Literal["anchor", "per-line", "auto"] = "auto"
     target_language: Literal["en", "zh-cn", "zh-tw"] = "en"

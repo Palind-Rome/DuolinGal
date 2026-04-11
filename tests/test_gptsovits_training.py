@@ -179,7 +179,57 @@ class GptSovitsTrainingPreparationTests(unittest.TestCase):
             self.assertEqual(payload["speaker_alias"], "uts_v2")
             self.assertTrue(Path(payload["train_gpt_script_path"]).exists())
 
+    def test_prepare_gptsovits_training_reads_gpt_root_from_toolchain_config(self) -> None:
+        with temporary_workspace() as temp_dir:
+            game_root = temp_dir / "game"
+            projects_root = temp_dir / "projects"
+            gpt_root = temp_dir / "tools" / "GPT-SoVITS"
+
+            for name in ("voice.xp3", "scn.xp3", "patch.xp3", "KAGParserEx.dll", "psbfile.dll", "senrenbanka.exe"):
+                touch(game_root / name)
+
+            self._create_fake_gpt_root(gpt_root)
+
+            analysis = analyze_game_directory(game_root)
+            initialize_project_workspace(analysis, project_id="senren-train-config", projects_root=projects_root)
+            project_root = projects_root / "senren-train-config"
+
+            speaker_dir = project_root / "tts-dataset" / "茉子"
+            audio_dir = speaker_dir / "audio"
+            audio_dir.mkdir(parents=True, exist_ok=True)
+            (audio_dir / "mak001_001.ogg").write_bytes(b"ogg-data")
+
+            with (speaker_dir / "metadata.csv").open("w", encoding="utf-8", newline="") as handle:
+                handle.write(
+                    "line_id,scene_id,order_index,speaker_name,voice_file,audio_path,jp_text,en_text\n"
+                    'scene001-0005,scene001,5,茉子,mak001_001.ogg,audio/mak001_001.ogg,「いいよ」,"Sure."\n'
+                )
+
+            config_path = temp_dir / "toolchain.local.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "gpt-sovits": {
+                            "path": str(gpt_root / "api_v2.py"),
+                        }
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+                newline="\n",
+            )
+
+            result = prepare_gptsovits_training(
+                project_root,
+                "茉子",
+                config_path=config_path,
+            )
+
+            self.assertEqual(result.gpt_sovits_root, str(gpt_root.resolve()))
+
     def _create_fake_gpt_root(self, gpt_root: Path) -> None:
+        touch(gpt_root / "api_v2.py")
         for relative_file in (
             "GPT_SoVITS/prepare_datasets/1-get-text.py",
             "GPT_SoVITS/prepare_datasets/2-get-hubert-wav32k.py",

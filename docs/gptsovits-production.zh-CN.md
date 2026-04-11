@@ -36,6 +36,8 @@ $env:PYTHONPATH='src'
 python -m duolingal prepare-gptsovits-production "<PROJECT_ROOT>" --target-language zh-cn
 ```
 
+如果 `configs/toolchain.local.json` 里已经配置了 `gpt-sovits.path` 指向本地 `api_v2.py`，这里会自动读取对应仓库根目录；也可以传 `--config "<CONFIG_PATH>"` 指向另一份配置，或者传 `--gpt-sovits-root "<GPT_SOVITS_DIR>"` 直接覆盖。
+
 如果只想排部分角色，可以重复传 `--speaker`：
 
 ```powershell

@@ -255,7 +255,8 @@
 
 当前实现：
 - `_resolve_gpt_sovits_root(...)`
-- 未显式传入 `--gpt-sovits-root` 时，会按仓库相对位置推断 `../tools/GPT-SoVITS`
+- 未显式传入 `--gpt-sovits-root` 时，会先尝试读取 `toolchain.local.json` 里的
+  `gpt-sovits.path`，再回退到按仓库相对位置推断 `../tools/GPT-SoVITS`
 
 这就是典型的“位置硬编码”之一。
 
